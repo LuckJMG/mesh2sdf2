@@ -23,12 +23,10 @@ check:
     {{py}} -m ruff check .
     bash tools/lint_cpp.sh
 
-# remove build artifacts and Python caches
+# remove build artifacts
 clean:
     rm -rf build/ *.egg-info/ mesh2sdf.egg-info/ mesh2sdf2.egg-info/
     rm -f mesh2sdf/*.so
-    find . -path ./.venv -prune -o -type d -name '__pycache__' -exec rm -rf {} +
-    find . -path ./.venv -prune -o -type f -name '*.pyc' -delete
     rm -f compile_commands.json
 
 # initialize the project on a new computer
