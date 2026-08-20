@@ -126,12 +126,13 @@ No test suite. No CI. No linter, formatter, typecheck configured.
 ## C++ lint
 
 `csrc/**` is formatted with `clang-format` (LLVM base, 4-tab indent, K&R
-braces) and analyzed with `clang-tidy` (conservative checks:
-`clang-analyzer-*`, `bugprone-*`, `performance-*`). Config files are
-`.clang-format` and `.clang-tidy` at the repo root. Run everything with
-`bash tools/lint_cpp.sh`. The script builds `compile_commands.json` via
-`compiledb` (dev dependency) and runs both tools. `compile_commands.json`
-is gitignored.
+braces, `InsertBraces: true`, `BeforeElse`/`BeforeCatch` on new line) and
+analyzed with `clang-tidy` (conservative checks: `clang-analyzer-*`,
+`bugprone-*`, `performance-*`). Config files are `.clang-format` and
+`.clang-tidy` at the repo root. Run everything with `just check`. The
+justfile reads the pybind11 and Python include paths from the venv and
+passes them directly to clang-tidy; no `compile_commands.json` is
+generated.
 
 Smoke test (Python 3.14, single `.venv`):
 
