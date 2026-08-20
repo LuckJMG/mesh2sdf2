@@ -46,5 +46,6 @@ include = ["mesh2sdf*"]
 [dependency-groups]
 dev = [
     "matplotlib",
+    "pytest",
     "ruff>=0.16.4",
 ]
