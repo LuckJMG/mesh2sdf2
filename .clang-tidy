@@ -1,0 +1,5 @@
+---
+Checks: '-*,clang-analyzer-*,bugprone-*,performance-*'
+HeaderFilterRegex: 'csrc/.*'
+WarningsAsErrors: ''
+---

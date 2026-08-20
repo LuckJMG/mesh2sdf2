@@ -45,7 +45,9 @@ include = ["mesh2sdf*"]
 
 [dependency-groups]
 dev = [
+    "compiledb",
     "matplotlib",
+    "pybind11>=2.13",
     "pytest",
     "ruff>=0.16.4",
 ]
