@@ -7,13 +7,17 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mesh2sdf"
+name = "mesh2sdf2"
 version = "2.0.0"
-description = "Compute the signed distance field from an input mesh"
+description = "Compute the signed distance field from an input mesh — Python 3.10–3.14 fork"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
-authors = [{name = "Peng-Shuai Wang", email = "wangps@hotmail.com"}]
+authors = [
+    {name = "Lucas Mosquera", email = "25126199+LuckJMG@users.noreply.github.com"},
+    {name = "Peng-Shuai Wang", email = "wangps@hotmail.com"},
+]
+keywords = ["sdf", "mesh", "signed-distance-field", "pybind11", "3d"]
 classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -21,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
+    "Development Status :: 5 - Production/Stable",
 ]
 dependencies = [
     "numpy",
@@ -29,7 +34,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/wang-ps/mesh2sdf"
+Homepage = "https://github.com/LuckJMG/mesh2sdf2"
+Source = "https://github.com/LuckJMG/mesh2sdf2"
+Issues = "https://github.com/LuckJMG/mesh2sdf2/issues"
+Upstream = "https://github.com/wang-ps/mesh2sdf"
 
 [tool.setuptools.packages.find]
 where = ["."]
