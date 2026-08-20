@@ -1,5 +1,6 @@
 import os
 import sys
+
 import matplotlib.pyplot as plt
 import numpy as np
 import skimage.measure
@@ -28,7 +29,7 @@ for i, level in enumerate(levels):
 
     vtx = vtx * (mesh_scale * 2.0 / size) - 1.0
     mesh = trimesh.Trimesh(vtx, faces)
-    mesh.export(os.path.join(folder, "l%.2f.obj" % level))
+    mesh.export(os.path.join(folder, f"l{level:.2f}.obj"))
 
 
 # draw image
@@ -39,7 +40,7 @@ for i in range(size):
     fig, ax = plt.subplots(figsize=(2.75, 2.75), dpi=300)
     levels_pos = np.logspace(-2, 0, num=num_levels)  # logspace
     levels_neg = -1.0 * levels_pos[::-1]
-    levels = np.concatenate((levels_neg, np.zeros((0)), levels_pos), axis=0)
+    levels = np.concatenate((levels_neg, np.zeros(0), levels_pos), axis=0)
     colors = plt.get_cmap("Spectral")(np.linspace(0.0, 1.0, num=num_levels * 2 + 1))
 
     sample = array_2d
@@ -50,5 +51,5 @@ for i in range(size):
     ax.contour(sample, levels=[0], colors="k", linewidths=0.3)
     ax.axis("off")
 
-    plt.savefig(os.path.join(folder, "%03d.png" % i))
+    plt.savefig(os.path.join(folder, f"{i:03d}.png"))
     # plt.show()

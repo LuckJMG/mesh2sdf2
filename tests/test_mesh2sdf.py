@@ -1,13 +1,12 @@
 import inspect
 from pathlib import Path
 
+import mesh2sdf.core
 import numpy as np
 import pytest
 import trimesh
 
 import mesh2sdf
-import mesh2sdf.core
-
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLANE_OBJ = REPO_ROOT / "example" / "data" / "plane.obj"
@@ -149,9 +148,9 @@ class TestAlgorithmCorrectness:
         size = 64
         sdf = mesh2sdf.compute(v, f, size=size)
         for vert in v:
-            ix = int(round((vert[0] + 1.0) * size / 2.0))
-            iy = int(round((vert[1] + 1.0) * size / 2.0))
-            iz = int(round((vert[2] + 1.0) * size / 2.0))
+            ix = round((vert[0] + 1.0) * size / 2.0)
+            iy = round((vert[1] + 1.0) * size / 2.0)
+            iz = round((vert[2] + 1.0) * size / 2.0)
             ix = max(0, min(size - 1, ix))
             iy = max(0, min(size - 1, iy))
             iz = max(0, min(size - 1, iz))
@@ -161,7 +160,7 @@ class TestAlgorithmCorrectness:
 class TestFixPath:
     def test_fix_false_passthrough(self, cube_norm):
         v, f = cube_norm
-        sdf, mesh = mesh2sdf.compute(v, f, size=32, fix=False, return_mesh=True)
+        _, mesh = mesh2sdf.compute(v, f, size=32, fix=False, return_mesh=True)
         # fix=False path returns the input verts/faces wrapped in a Trimesh
         assert mesh.vertices.shape == v.shape
         assert mesh.faces.shape == f.shape

@@ -1,9 +1,11 @@
 import os
 import sys
-import trimesh
-import mesh2sdf
-import numpy as np
 import time
+
+import numpy as np
+import trimesh
+
+import mesh2sdf
 
 filename = (
     sys.argv[1]
@@ -36,4 +38,4 @@ t1 = time.time()
 mesh.vertices = mesh.vertices / scale + center
 mesh.export(filename[:-4] + ".fixed.obj")
 np.save(filename[:-4] + ".npy", sdf)
-print("It takes %.4f seconds to process %s" % (t1 - t0, filename))
+print(f"It takes {t1 - t0:.4f} seconds to process {filename}")

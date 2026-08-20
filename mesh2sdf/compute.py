@@ -1,6 +1,6 @@
 import numpy as np
-import trimesh
 import skimage.measure
+import trimesh
 
 import mesh2sdf.core
 
