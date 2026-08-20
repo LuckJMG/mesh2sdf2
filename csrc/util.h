@@ -59,7 +59,8 @@ template <class T> inline void minmax(T a1, T a2, T &amin, T &amax) {
 	if (a1 < a2) {
 		amin = a1;
 		amax = a2;
-	} else {
+	}
+	else {
 		amin = a2;
 		amax = a1;
 	}
@@ -69,25 +70,34 @@ template <class T> inline void minmax(T a1, T a2, T a3, T &amin, T &amax) {
 	if (a1 < a2) {
 		if (a1 < a3) {
 			amin = a1;
-			if (a2 < a3)
+			if (a2 < a3) {
 				amax = a3;
-			else
+			}
+			else {
 				amax = a2;
-		} else {
-			amin = a3;
-			if (a1 < a2)
-				amax = a2;
-			else
-				amax = a1;
+			}
 		}
-	} else {
+		else {
+			amin = a3;
+			if (a1 < a2) {
+				amax = a2;
+			}
+			else {
+				amax = a1;
+			}
+		}
+	}
+	else {
 		if (a2 < a3) {
 			amin = a2;
-			if (a1 < a3)
+			if (a1 < a3) {
 				amax = a3;
-			else
+			}
+			else {
 				amax = a1;
-		} else {
+			}
+		}
+		else {
 			amin = a3;
 			amax = a1;
 		}
@@ -100,15 +110,18 @@ inline void minmax(T a1, T a2, T a3, T a4, T &amin, T &amax) {
 		if (a3 < a4) {
 			amin = min(a1, a3);
 			amax = max(a2, a4);
-		} else {
+		}
+		else {
 			amin = min(a1, a4);
 			amax = max(a2, a3);
 		}
-	} else {
+	}
+	else {
 		if (a3 < a4) {
 			amin = min(a2, a3);
 			amax = max(a1, a4);
-		} else {
+		}
+		else {
 			amin = min(a2, a4);
 			amax = max(a1, a3);
 		}
@@ -130,10 +143,12 @@ inline void minmax(T a1, T a2, T a3, T a4, T a5, T a6, T &amin, T &amax) {
 }
 
 template <class T> inline void update_minmax(T a1, T &amin, T &amax) {
-	if (a1 < amin)
+	if (a1 < amin) {
 		amin = a1;
-	else if (a1 > amax)
+	}
+	else if (a1 > amax) {
 		amax = a1;
+	}
 }
 
 template <class T> inline void sort(T &a, T &b, T &c) {
@@ -145,25 +160,29 @@ template <class T> inline void sort(T &a, T &b, T &c) {
 				c = b;
 				b = temp;
 			} // else: a<b<c
-		} else { // c<a<b
+		}
+		else { // c<a<b
 			temp = c;
 			c = b;
 			b = a;
 			a = temp;
 		}
-	} else {
+	}
+	else {
 		if (b < c) {
 			if (a < c) { // b<a<c
 				temp = b;
 				b = a;
 				a = temp;
-			} else { // b<c<a
+			}
+			else { // b<c<a
 				temp = b;
 				b = c;
 				c = a;
 				a = temp;
 			}
-		} else { // c<b<a
+		}
+		else { // c<b<a
 			temp = c;
 			c = a;
 			a = temp;
@@ -172,20 +191,25 @@ template <class T> inline void sort(T &a, T &b, T &c) {
 }
 
 template <class T> inline T clamp(T a, T lower, T upper) {
-	if (a < lower)
+	if (a < lower) {
 		return lower;
-	else if (a > upper)
+	}
+	else if (a > upper) {
 		return upper;
-	else
+	}
+	else {
 		return a;
+	}
 }
 
 // only makes sense with T=float or double
 template <class T> inline T smooth_step(T r) {
-	if (r < 0)
+	if (r < 0) {
 		return 0;
-	else if (r > 1)
+	}
+	else if (r > 1) {
 		return 1;
+	}
 	return r * r * r * (10 + r * (-15 + r * 6));
 }
 
@@ -290,11 +314,14 @@ inline void get_barycentric(T x, int &i, T &f, int i_low, int i_high) {
 	if (i < i_low) {
 		i = i_low;
 		f = 0;
-	} else if (i > i_high - 2) {
+	}
+	else if (i > i_high - 2) {
 		i = i_high - 2;
 		f = 1;
-	} else
+	}
+	else {
 		f = (T)(x - s);
+	}
 }
 
 template <class S, class T>
@@ -359,49 +386,58 @@ inline S cubic_interp(const S &value_neg1, const S &value0, const S &value1,
 }
 
 template <class T> void zero(std::vector<T> &v) {
-	for (int i = (int)v.size() - 1; i >= 0; --i)
+	for (int i = (int)v.size() - 1; i >= 0; --i) {
 		v[i] = 0;
+	}
 }
 
 template <class T> T abs_max(const std::vector<T> &v) {
 	T m = 0;
 	for (int i = (int)v.size() - 1; i >= 0; --i) {
-		if (std::fabs(v[i]) > m)
+		if (std::fabs(v[i]) > m) {
 			m = std::fabs(v[i]);
+		}
 	}
 	return m;
 }
 
 template <class T> bool contains(const std::vector<T> &a, T e) {
-	for (unsigned int i = 0; i < a.size(); ++i)
-		if (a[i] == e)
+	for (unsigned int i = 0; i < a.size(); ++i) {
+		if (a[i] == e) {
 			return true;
+		}
+	}
 	return false;
 }
 
 template <class T> void add_unique(std::vector<T> &a, T e) {
-	for (unsigned int i = 0; i < a.size(); ++i)
-		if (a[i] == e)
+	for (unsigned int i = 0; i < a.size(); ++i) {
+		if (a[i] == e) {
 			return;
+		}
+	}
 	a.push_back(e);
 }
 
 template <class T> void insert(std::vector<T> &a, unsigned int index, T e) {
 	a.push_back(a.back());
-	for (unsigned int i = (unsigned int)a.size() - 1; i > index; --i)
+	for (unsigned int i = (unsigned int)a.size() - 1; i > index; --i) {
 		a[i] = a[i - 1];
+	}
 	a[index] = e;
 }
 
 template <class T> void erase(std::vector<T> &a, unsigned int index) {
-	for (unsigned int i = index; i < a.size() - 1; ++i)
+	for (unsigned int i = index; i < a.size() - 1; ++i) {
 		a[i] = a[i + 1];
+	}
 	a.pop_back();
 }
 
 template <class T> void erase_swap(std::vector<T> &a, unsigned int index) {
-	for (unsigned int i = index; i < a.size() - 1; ++i)
+	for (unsigned int i = index; i < a.size() - 1; ++i) {
 		swap(a[i], a[i + 1]);
+	}
 	a.pop_back();
 }
 
@@ -418,21 +454,23 @@ void erase_unordered_swap(std::vector<T> &a, unsigned int index) {
 
 template <class T>
 void find_and_erase_unordered(std::vector<T> &a, const T &doomed_element) {
-	for (unsigned int i = 0; i < a.size(); ++i)
+	for (unsigned int i = 0; i < a.size(); ++i) {
 		if (a[i] == doomed_element) {
 			erase_unordered(a, i);
 			return;
 		}
+	}
 }
 
 template <class T>
 void replace_once(std::vector<T> &a, const T &old_element,
 				  const T &new_element) {
-	for (unsigned int i = 0; i < a.size(); ++i)
+	for (unsigned int i = 0; i < a.size(); ++i) {
 		if (a[i] == old_element) {
 			a[i] = new_element;
 			return;
 		}
+	}
 }
 
 template <class T>
@@ -446,8 +484,9 @@ void write_matlab(std::ostream &output, const std::vector<T> &a,
 		output << a[i] << " ";
 	}
 	output << "]";
-	if (column_vector)
+	if (column_vector) {
 		output << "'";
+	}
 	output << ";" << std::endl;
 	output.precision(old_precision);
 }

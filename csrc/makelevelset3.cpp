@@ -9,7 +9,8 @@ static float point_segment_distance(const Vec3f &x0, const Vec3f &x1,
 	float s12 = (float)(dot(x2 - x0, dx) / m2);
 	if (s12 < 0) {
 		s12 = 0;
-	} else if (s12 > 1) {
+	}
+	else if (s12 > 1) {
 		s12 = 1;
 	}
 	// and find the distance
@@ -30,16 +31,20 @@ static float point_triangle_distance(const Vec3f &x0, const Vec3f &x1,
 	float w12 = 1 - w23 - w31;
 	if (w23 >= 0 && w31 >= 0 && w12 >= 0) { // if we're inside the triangle
 		return dist(x0, w23 * x1 + w31 * x2 + w12 * x3);
-	} else {		 // we have to clamp to one of the edges
-		if (w23 > 0) // this rules out edge 2-3 for us
+	}
+	else {			   // we have to clamp to one of the edges
+		if (w23 > 0) { // this rules out edge 2-3 for us
 			return min(point_segment_distance(x0, x1, x2),
 					   point_segment_distance(x0, x1, x3));
-		else if (w31 > 0) // this rules out edge 1-3
+		}
+		else if (w31 > 0) { // this rules out edge 1-3
 			return min(point_segment_distance(x0, x1, x2),
 					   point_segment_distance(x0, x2, x3));
-		else // w12 must be >0, ruling out edge 1-2
+		}
+		else { // w12 must be >0, ruling out edge 1-2
 			return min(point_segment_distance(x0, x1, x3),
 					   point_segment_distance(x0, x2, x3));
+		}
 	}
 }
 
@@ -65,7 +70,8 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 	if (di > 0) {
 		i0 = 1;
 		i1 = phi.ni;
-	} else {
+	}
+	else {
 		i0 = phi.ni - 2;
 		i1 = -1;
 	}
@@ -73,7 +79,8 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 	if (dj > 0) {
 		j0 = 1;
 		j1 = phi.nj;
-	} else {
+	}
+	else {
 		j0 = phi.nj - 2;
 		j1 = -1;
 	}
@@ -81,12 +88,13 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 	if (dk > 0) {
 		k0 = 1;
 		k1 = phi.nk;
-	} else {
+	}
+	else {
 		k0 = phi.nk - 2;
 		k1 = -1;
 	}
-	for (int k = k0; k != k1; k += dk)
-		for (int j = j0; j != j1; j += dj)
+	for (int k = k0; k != k1; k += dk) {
+		for (int j = j0; j != j1; j += dj) {
 			for (int i = i0; i != i1; i += di) {
 				Vec3f gx(i * dx + origin[0], j * dx + origin[1],
 						 k * dx + origin[2]);
@@ -105,6 +113,8 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i - di,
 								j - dj, k - dk);
 			}
+		}
+	}
 }
 
 // calculate twice signed area of triangle (0,0)-(x1,y1)-(x2,y2)
@@ -113,20 +123,27 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 static int orientation(double x1, double y1, double x2, double y2,
 					   double &twice_signed_area) {
 	twice_signed_area = y1 * x2 - x1 * y2;
-	if (twice_signed_area > 0)
+	if (twice_signed_area > 0) {
 		return 1;
-	else if (twice_signed_area < 0)
+	}
+	else if (twice_signed_area < 0) {
 		return -1;
-	else if (y2 > y1)
+	}
+	else if (y2 > y1) {
 		return 1;
-	else if (y2 < y1)
+	}
+	else if (y2 < y1) {
 		return -1;
-	else if (x1 > x2)
+	}
+	else if (x1 > x2) {
 		return 1;
-	else if (x1 < x2)
+	}
+	else if (x1 < x2) {
 		return -1;
-	else
+	}
+	else {
 		return 0; // only true when x1==x2 and y1==y2
+	}
 }
 
 // robust test of (x0,y0) in the triangle (x1,y1)-(x2,y2)-(x3,y3)
@@ -141,14 +158,17 @@ static bool point_in_triangle_2d(double x0, double y0, double x1, double y1,
 	y2 -= y0;
 	y3 -= y0;
 	int signa = orientation(x2, y2, x3, y3, a);
-	if (signa == 0)
+	if (signa == 0) {
 		return false;
+	}
 	int signb = orientation(x3, y3, x1, y1, b);
-	if (signb != signa)
+	if (signb != signa) {
 		return false;
+	}
 	int signc = orientation(x1, y1, x2, y2, c);
-	if (signc != signa)
+	if (signc != signa) {
 		return false;
+	}
 	double sum = a + b + c;
 	assert(sum != 0); // if the SOS signs match and are nonkero, there's no way
 					  // all of a, b, and c are zero.
@@ -191,8 +211,8 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 			j1 = clamp(int(max(fjp, fjq, fjr)) + exact_band + 1, 0, nj - 1);
 		int k0 = clamp(int(min(fkp, fkq, fkr)) - exact_band, 0, nk - 1),
 			k1 = clamp(int(max(fkp, fkq, fkr)) + exact_band + 1, 0, nk - 1);
-		for (int k = k0; k <= k1; ++k)
-			for (int j = j0; j <= j1; ++j)
+		for (int k = k0; k <= k1; ++k) {
+			for (int j = j0; j <= j1; ++j) {
 				for (int i = i0; i <= i1; ++i) {
 					Vec3f gx(i * dx + origin[0], j * dx + origin[1],
 							 k * dx + origin[2]);
@@ -202,12 +222,14 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 						closest_tri(i, j, k) = t;
 					}
 				}
+			}
+		}
 		// and do intersection counts
 		j0 = clamp((int)std::ceil(min(fjp, fjq, fjr)), 0, nj - 1);
 		j1 = clamp((int)std::floor(max(fjp, fjq, fjr)), 0, nj - 1);
 		k0 = clamp((int)std::ceil(min(fkp, fkq, fkr)), 0, nk - 1);
 		k1 = clamp((int)std::floor(max(fkp, fkq, fkr)), 0, nk - 1);
-		for (int k = k0; k <= k1; ++k)
+		for (int k = k0; k <= k1; ++k) {
 			for (int j = j0; j <= j1; ++j) {
 				double a, b, c;
 				if (point_in_triangle_2d(j, k, fjp, fkp, fjq, fkq, fjr, fkr, a,
@@ -216,16 +238,19 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 								c * fir; // intersection i coordinate
 					int i_interval = int(std::ceil(
 						fi)); // intersection is in (i_interval-1,i_interval]
-					if (i_interval < 0)
+					if (i_interval < 0) {
 						++intersection_count(
 							0, j, k); // we enlarge the first interval to
 									  // include everything to the -x direction
-					else if (i_interval < ni)
+					}
+					else if (i_interval < ni) {
 						++intersection_count(i_interval, j, k);
+					}
 					// we ignore intersections that are beyond the +x side of
 					// the grid
 				}
 			}
+		}
 	}
 	// and now we fill in the rest of the distances with fast sweeping
 	for (unsigned int pass = 0; pass < 2; ++pass) {
@@ -239,7 +264,7 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 		sweep(tri, x, phi, closest_tri, origin, dx, -1, +1, +1);
 	}
 	// then figure out signs (inside/outside) from intersection counts
-	for (int k = 0; k < nk; ++k)
+	for (int k = 0; k < nk; ++k) {
 		for (int j = 0; j < nj; ++j) {
 			int total_count = 0;
 			for (int i = 0; i < ni; ++i) {
@@ -250,4 +275,5 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 				}
 			}
 		}
+	}
 }

@@ -85,66 +85,90 @@ template <class T, class ArrayT = std::vector<T>> struct Array3 {
 	}
 
 	bool operator<(const Array3<T> &x) const {
-		if (ni < x.ni)
+		if (ni < x.ni) {
 			return true;
-		else if (ni > x.ni)
+		}
+		else if (ni > x.ni) {
 			return false;
-		if (nj < x.nj)
+		}
+		if (nj < x.nj) {
 			return true;
-		else if (nj > x.nj)
+		}
+		else if (nj > x.nj) {
 			return false;
-		if (nk < x.nk)
+		}
+		if (nk < x.nk) {
 			return true;
-		else if (nk > x.nk)
+		}
+		else if (nk > x.nk) {
 			return false;
+		}
 		return a < x.a;
 	}
 
 	bool operator>(const Array3<T> &x) const {
-		if (ni > x.ni)
+		if (ni > x.ni) {
 			return true;
-		else if (ni < x.ni)
+		}
+		else if (ni < x.ni) {
 			return false;
-		if (nj > x.nj)
+		}
+		if (nj > x.nj) {
 			return true;
-		else if (nj < x.nj)
+		}
+		else if (nj < x.nj) {
 			return false;
-		if (nk > x.nk)
+		}
+		if (nk > x.nk) {
 			return true;
-		else if (nk < x.nk)
+		}
+		else if (nk < x.nk) {
 			return false;
+		}
 		return a > x.a;
 	}
 
 	bool operator<=(const Array3<T> &x) const {
-		if (ni < x.ni)
+		if (ni < x.ni) {
 			return true;
-		else if (ni > x.ni)
+		}
+		else if (ni > x.ni) {
 			return false;
-		if (nj < x.nj)
+		}
+		if (nj < x.nj) {
 			return true;
-		else if (nj > x.nj)
+		}
+		else if (nj > x.nj) {
 			return false;
-		if (nk < x.nk)
+		}
+		if (nk < x.nk) {
 			return true;
-		else if (nk > x.nk)
+		}
+		else if (nk > x.nk) {
 			return false;
+		}
 		return a <= x.a;
 	}
 
 	bool operator>=(const Array3<T> &x) const {
-		if (ni > x.ni)
+		if (ni > x.ni) {
 			return true;
-		else if (ni < x.ni)
+		}
+		else if (ni < x.ni) {
 			return false;
-		if (nj > x.nj)
+		}
+		if (nj > x.nj) {
 			return true;
-		else if (nj < x.nj)
+		}
+		else if (nj < x.nj) {
 			return false;
-		if (nk > x.nk)
+		}
+		if (nk > x.nk) {
 			return true;
-		else if (nk < x.nk)
+		}
+		else if (nk < x.nk) {
 			return false;
+		}
 		return a >= x.a;
 	}
 

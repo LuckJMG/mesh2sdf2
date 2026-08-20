@@ -26,18 +26,21 @@ void load_obj(std::vector<Vec3f> &vertList, std::vector<Vec3ui> &faceList,
 			Vec3f point;
 			data >> c >> point[0] >> point[1] >> point[2];
 			vertList.push_back(point);
-		} else if (line.substr(0, 1) == std::string("f")) {
+		}
+		else if (line.substr(0, 1) == std::string("f")) {
 			std::stringstream data(line);
 			char c;
 			int v0, v1, v2;
 			data >> c >> v0 >> v1 >> v2;
 			faceList.push_back(Vec3ui(v0 - 1, v1 - 1, v2 - 1));
-		} else if (line.substr(0, 2) == std::string("vn")) {
+		}
+		else if (line.substr(0, 2) == std::string("vn")) {
 			std::cerr
 				<< "Obj-loader is not able to parse vertex normals, please "
 				   "strip them from the input file. \n";
 			exit(-2);
-		} else {
+		}
+		else {
 			++ignored_lines;
 		}
 	}
