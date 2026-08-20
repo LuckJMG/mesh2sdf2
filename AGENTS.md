@@ -1,8 +1,13 @@
-# mesh2sdf
+# mesh2sdf2
 
-Python wrapper around pybind11 C++ ext. Compute signed distance field from
-triangle mesh. Handle non-watertight input via marching cubes + biggest bbox
-component pick.
+Community-maintained fork of
+[mesh2sdf](https://github.com/wang-ps/mesh2sdf) by Peng-Shuai Wang. Same
+algorithm and public API, modernized build: Python 3.10–3.14, setuptools
+≥68, pybind11 ≥2.13. License: MIT (verbatim from upstream).
+
+Distribution name on PyPI is `mesh2sdf2`. Import name stays `mesh2sdf`
+for drop-in compatibility. Maintainer: Lucas Mosquera. Upstream credit
+in `pyproject.toml` `authors` + `[project.urls].Upstream`.
 
 ## What it does
 
@@ -15,11 +20,12 @@ Algorithm:
 3. Re-run signed SDF on fixed mesh. Return signed result.
 
 C++ fast-sweep from SDFGen by Christopher Batty. Box hard-coded `[-1, 1]` in
-`csrc/pybind.cpp:27`. `dx = 2/size`.
+`csrc/pybind.cpp:27`. `dx = 2/size`. Unchanged from upstream.
 
 ## Layout
 
-- `mesh2sdf/__init__.py` — re-export `compute`.
+- `mesh2sdf/__init__.py` — re-export `compute`. Import name `mesh2sdf`
+  preserved for drop-in use.
 - `mesh2sdf/compute.py` — wrap `mesh2sdf.core.compute`. Run `fix=True` path.
 - `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`.
 - `csrc/makelevelset3.cpp` — fast-sweep algorithm impl.
@@ -28,31 +34,50 @@ C++ fast-sweep from SDFGen by Christopher Batty. Box hard-coded `[-1, 1]` in
 - `csrc/vec.h` — `Vec3f`, `Vec3ui` types.
 - `csrc/util.h` — misc helpers.
 - `csrc/main.backup.cpp` — legacy standalone. NOT in `ext_modules`. Ignore.
-- `setup.py` — `Pybind11Extension('mesh2sdf.core', ['csrc/pybind.cpp', 'csrc/makelevelset3.cpp'])`.
-- `pyproject.toml` — build-system only. No metadata.
+- `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
+  + `cmdclass={'build_ext': build_ext}`. `__version__` is the source of
+  truth for the C++ `VERSION_INFO` macro.
+- `pyproject.toml` — PEP 621 metadata + build-system. `[project]`
+  declares name `mesh2sdf2`, deps, classifiers, urls. `[build-system]`
+  requires `setuptools>=68, pybind11>=2.13`. `[dependency-groups].dev`
+  has `matplotlib` (visualization only).
 - `MANIFEST.in` — graft `csrc/`. Needed for sdist.
+- `LICENSE` — MIT verbatim. Renamed from `LISCENCE` typo in v2.
 - `example/test.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`.
 - `example/visualize_sdf.py` — slice `.npy`, render PNG + level-set OBJ.
 - `example/data/plane.obj` — default test mesh.
 
 ## Build
 
-Source install needs C++ compiler. pybind11 supported compilers:
+Source install needs a C++ compiler. pybind11 supported compilers:
 https://github.com/pybind/pybind11#supported-compilers
 
 ```sh
-pip install ./mesh2sdf
+pip install mesh2sdf2            # PyPI (fork name)
+pip install -e ./mesh2sdf2       # source, editable
 ```
 
-Build deps from `pyproject.toml`: `pybind11>=2.8.0`, `setuptools>=42`, `wheel`.
+Build deps from `pyproject.toml [build-system].requires`:
+`setuptools>=68`, `pybind11>=2.13`. `wheel` removed (setuptools
+auto-provides).
 
-Runtime deps from `setup.py`: `numpy`, `trimesh`, `scikit-image`.
+Runtime deps from `pyproject.toml [project.dependencies]`:
+`numpy`, `trimesh`, `scikit-image`.
 
-`uv sync` alone won't install runtime deps — `uv.lock` empty. Either
-`uv pip install numpy trimesh scikit-image matplotlib` or
-`pip install -e ./mesh2sdf`.
+`uv sync` resolves build + runtime + dev via `uv.lock` (populated since v2).
 
-Python 3.12 pinned via `.python-version`. `.venv` uv-managed.
+The project has no Python pin in the working tree. The single `.venv` is
+the dev environment and is currently Python 3.14 (uv-managed). The
+system `/usr/bin/python3.14` lacks `Python.h` and cannot build the C++
+extension — uv-managed 3.14 bundles the headers.
+
+Local dev setup, if `.venv` is missing or built against the wrong Python:
+
+```sh
+uv python install 3.14
+uv venv --python "$(uv python find 3.14 | grep -v '/usr/bin')" .venv
+uv sync --no-dev
+```
 
 ## Public API
 
@@ -98,18 +123,50 @@ python example/visualize_sdf.py foo.npy   # custom .npy
 
 No test suite. No CI. No linter, formatter, typecheck configured.
 
-Smoke test = `python example/test.py` on `example/data/plane.obj`. Pass if
-`<output>.fixed.obj` and `<output>.npy` produced without traceback.
+Smoke test (Python 3.14, single `.venv`):
 
-Example also needs `matplotlib` (not in `install_requires`).
+```sh
+.venv/bin/python example/test.py
+```
+
+Pass if `<output>.fixed.obj` and `<output>.npy` produced without traceback.
+
+Version sanity:
+
+```sh
+.venv/bin/python -c "import mesh2sdf.core; print(mesh2sdf.core.__version__)"   # 2.0.0
+```
+
+Visualization needs `matplotlib` (in `[dependency-groups].dev`):
+
+```sh
+uv sync                                       # installs dev group
+uv run python example/visualize_sdf.py
+```
 
 ## Gotchas
 
-- `pyproject.toml` no project metadata. Don't assume PEP 621 — read `setup.py`.
-- `MANIFEST.in` grafts `csrc/`. Without it, sdist missing C++ sources, install fails.
-- `compute.py:43` re-normalize fixed mesh to `[-1, 1]` after marching cubes. `example/test.py:32` un-scale for output. Keep both in sync if you touch box convention.
+- **This is a fork.** Distribution is `mesh2sdf2`, but `import mesh2sdf`
+  works. Do not rename the `mesh2sdf/` directory or the `mesh2sdf.core`
+  C++ module — that would break drop-in compatibility.
+- **Upstream** is at github.com/wang-ps/mesh2sdf. Upstream copyright
+  (Peng-Shuai Wang, 2022) is preserved verbatim in `LICENSE`. Fork
+  attribution goes via `pyproject.toml` `authors` and `[project.urls]`.
+  Do not edit `LICENSE` text.
+- `pyproject.toml` has full PEP 621 metadata (ported from `setup.py` in v2).
+  All package metadata lives in `pyproject.toml`; `setup.py` only declares
+  the extension and `cmdclass`.
+- `setup.py`'s `__version__` must match `pyproject.toml` `version` exactly —
+  the C++ `VERSION_INFO` macro is derived from it.
+- `MANIFEST.in` grafts `csrc/`. Without it, sdist missing C++ sources,
+  install fails. setuptools auto-includes `LICENSE` at root after the v2 rename.
+- `compute.py:43` re-normalizes fixed mesh to `[-1, 1]` after marching
+  cubes. `example/test.py:32` un-scales for output. Keep both in sync if
+  you touch box convention.
 - `csrc/main.backup.cpp` has its own OBJ loader. Don't confuse with active code.
-- `csrc/pybind.cpp:14` declare `vertices` as `float`, `faces` as `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.
-- `.gitignore` include `build/`, `*.so`, `__pycache__/`, `.venv/`, standard Python ignores.
-- `LISCENCE` (typo, missing E). MIT. Don't rename — git history track it.
+- `csrc/pybind.cpp:14` declares `vertices` as `float`, `faces` as
+  `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.
+- `.gitignore` includes `build/`, `*.so`, `__pycache__/`, `.venv/`,
+  standard Python ignores. Smoke-test outputs
+  (`example/data/*.fixed.obj`, `*.npy`) are untracked — do not commit.
 - Branch `master`.
