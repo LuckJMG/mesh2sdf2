@@ -169,4 +169,3 @@ uv run python example/visualize_sdf.py
 - `.gitignore` includes `build/`, `*.so`, `__pycache__/`, `.venv/`,
   standard Python ignores. Smoke-test outputs
   (`example/data/*.fixed.obj`, `*.npy`) are untracked — do not commit.
-- Branch `master`.
