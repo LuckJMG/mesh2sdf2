@@ -1,17 +1,18 @@
 from setuptools import setup
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 
-__version__ = '2.0.0'
+__version__ = "2.0.0"
 
 ext_modules = [
     Pybind11Extension(
-        'mesh2sdf.core',
-        ['csrc/pybind.cpp', 'csrc/makelevelset3.cpp'],
-        include_dirs=['csrc'],
-        define_macros=[('VERSION_INFO', __version__)],),
+        "mesh2sdf.core",
+        ["csrc/pybind.cpp", "csrc/makelevelset3.cpp"],
+        include_dirs=["csrc"],
+        define_macros=[("VERSION_INFO", __version__)],
+    ),
 ]
 
 setup(
     ext_modules=ext_modules,
-    cmdclass={'build_ext': build_ext},
+    cmdclass={"build_ext": build_ext},
 )

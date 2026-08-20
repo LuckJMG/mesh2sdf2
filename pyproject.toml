@@ -44,4 +44,7 @@ where = ["."]
 include = ["mesh2sdf*"]
 
 [dependency-groups]
-dev = ["matplotlib"]
+dev = [
+    "matplotlib",
+    "ruff>=0.16.4",
+]
