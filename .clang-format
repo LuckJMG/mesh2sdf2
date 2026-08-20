@@ -9,4 +9,5 @@ BraceWrapping:
   AfterFunction: false
   AfterControlStatement: Never
   BeforeElse: true
+  BeforeCatch: true
 ---
