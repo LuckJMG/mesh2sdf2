@@ -49,7 +49,7 @@ After installing `mesh2sdf`, run the following command to process an input mesh
 from ShapeNet:
 
 ```shell
-python example/test.py
+python example/demo.py
 ```
 
 ![Example of a mesh from ShapeNet](https://raw.githubusercontent.com/wang-ps/mesh2sdf/master/example/data/result.png)

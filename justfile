@@ -10,7 +10,7 @@ version := `awk -F'"' '/__version__/ {print $2; exit}' setup.py`
 
 # run the example workflow (default: example/data/plane.obj)
 run mesh="example/data/plane.obj":
-    {{py}} example/test.py {{mesh}}
+    {{py}} example/demo.py {{mesh}}
 
 # build the project (sync deps + recompile the C++ extension)
 build:

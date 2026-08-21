@@ -45,7 +45,7 @@ headers (`array1.h`, `vec.h`) keep only the surface the build uses.
   has `matplotlib` (visualization only).
 - `MANIFEST.in` — graft `csrc/`. Needed for sdist.
 - `LICENSE` — MIT verbatim. Renamed from `LISCENCE` typo in v2.
-- `example/test.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`.
+- `example/demo.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`.
 - `example/visualize_sdf.py` — slice `.npy`, render PNG + level-set OBJ.
 - `example/data/plane.obj` — default test mesh.
 
@@ -102,13 +102,13 @@ Returns:
 ## Example workflow
 
 ```sh
-python example/test.py                    # use example/data/plane.obj
-python example/test.py path/to/foo.obj    # custom; write foo.fixed.obj + foo.npy
+python example/demo.py                    # use example/data/plane.obj
+python example/demo.py path/to/foo.obj    # custom; write foo.fixed.obj + foo.npy
 python example/visualize_sdf.py           # use example/data/plane.npy
 python example/visualize_sdf.py foo.npy   # custom .npy
 ```
 
-`example/test.py` flow:
+`example/demo.py` flow:
 
 1. Load OBJ via `trimesh.load(force='mesh')`.
 2. Normalize vertices to `[-1, 1]` with `mesh_scale=0.8` (10% padding each side).
@@ -139,7 +139,7 @@ generated.
 Smoke test (Python 3.14, single `.venv`):
 
 ```sh
-.venv/bin/python example/test.py
+.venv/bin/python example/demo.py
 ```
 
 Pass if `<output>.fixed.obj` and `<output>.npy` produced without traceback.
@@ -200,7 +200,7 @@ target.
 - `MANIFEST.in` grafts `csrc/`. Without it, sdist missing C++ sources,
   install fails. setuptools auto-includes `LICENSE` at root after the v2 rename.
 - `compute.py:43` re-normalizes fixed mesh to `[-1, 1]` after marching
-  cubes. `example/test.py:32` un-scales for output. Keep both in sync if
+  cubes. `example/demo.py:32` un-scales for output. Keep both in sync if
   you touch box convention.
 - `csrc/pybind.cpp:14` declares `vertices` as `float`, `faces` as
   `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.

@@ -10,7 +10,7 @@ PLANE_OBJ = REPO_ROOT / "example" / "data" / "plane.obj"
 
 @pytest.fixture(scope="session")
 def plane_norm() -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-    """plane.obj normalized like example/test.py (mesh_scale=0.8, 10% padding).
+    """plane.obj normalized like example/demo.py (mesh_scale=0.8, 10% padding).
 
     Returns (vertices, faces, center, scale). Multiply vertices by ``scale``
     and add ``center`` to undo the normalization.
