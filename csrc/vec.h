@@ -11,10 +11,9 @@
 // For example, float[3] is equivalent to Vec<3,float>.
 // Entries in the vector are accessed with the overloaded [] operator, so
 // for example if x is a Vec<3,float>, then the middle entry is x[1].
-// For convenience, there are a number of typedefs for abbreviation:
-//   Vec<3,float> -> Vec3f
-//   Vec<2,int>   -> Vec2i
-// and so on.
+// For convenience, there are typedefs for abbreviation:
+//   Vec<3,float>           -> Vec3f
+//   Vec<3,unsigned int>    -> Vec3ui
 // Arithmetic operators are appropriately overloaded, and functions are defined
 // for additional operations (such as dot-products, norms, cross-products, etc.)
 
@@ -178,41 +177,8 @@ template <unsigned int N, class T> struct Vec {
 	}
 };
 
-typedef Vec<2, double> Vec2d;
-typedef Vec<2, float> Vec2f;
-typedef Vec<2, int> Vec2i;
-typedef Vec<2, unsigned int> Vec2ui;
-typedef Vec<2, short> Vec2s;
-typedef Vec<2, unsigned short> Vec2us;
-typedef Vec<2, char> Vec2c;
-typedef Vec<2, unsigned char> Vec2uc;
-
-typedef Vec<3, double> Vec3d;
 typedef Vec<3, float> Vec3f;
-typedef Vec<3, int> Vec3i;
 typedef Vec<3, unsigned int> Vec3ui;
-typedef Vec<3, short> Vec3s;
-typedef Vec<3, unsigned short> Vec3us;
-typedef Vec<3, char> Vec3c;
-typedef Vec<3, unsigned char> Vec3uc;
-
-typedef Vec<4, double> Vec4d;
-typedef Vec<4, float> Vec4f;
-typedef Vec<4, int> Vec4i;
-typedef Vec<4, unsigned int> Vec4ui;
-typedef Vec<4, short> Vec4s;
-typedef Vec<4, unsigned short> Vec4us;
-typedef Vec<4, char> Vec4c;
-typedef Vec<4, unsigned char> Vec4uc;
-
-typedef Vec<6, double> Vec6d;
-typedef Vec<6, float> Vec6f;
-typedef Vec<6, unsigned int> Vec6ui;
-typedef Vec<6, int> Vec6i;
-typedef Vec<6, short> Vec6s;
-typedef Vec<6, unsigned short> Vec6us;
-typedef Vec<6, char> Vec6c;
-typedef Vec<6, unsigned char> Vec6uc;
 
 template <unsigned int N, class T> T mag2(const Vec<N, T> &a) {
 	T l = sqr(a.v[0]);
