@@ -166,13 +166,7 @@ class TestExamplePlane:
     def test_plane_obj_exists(self):
         assert PLANE_OBJ.is_file()
 
-    @pytest.fixture
-    def plane_workspace(self, tmp_path):
-        out_dir = tmp_path / "plane_out"
-        out_dir.mkdir()
-        return out_dir
-
-    def test_plane_end_to_end(self, plane_workspace):
+    def test_plane_end_to_end(self):
         mesh = trimesh.load(PLANE_OBJ, force="mesh")
         assert mesh.vertices.shape[0] > 0
         assert mesh.faces.shape[0] > 0
@@ -195,7 +189,7 @@ class TestExamplePlane:
         assert isinstance(fixed, trimesh.Trimesh)
         assert fixed.is_watertight
 
-    def test_plane_outputs_persist(self, plane_workspace):
+    def test_plane_outputs_persist(self, tmp_path):
         mesh = trimesh.load(PLANE_OBJ, force="mesh")
         verts = mesh.vertices
         bbmin = verts.min(0)
@@ -209,8 +203,8 @@ class TestExamplePlane:
             norm, mesh.faces, size, fix=True, level=2 / size, return_mesh=True
         )
 
-        npy = plane_workspace / "plane.npy"
-        obj = plane_workspace / "plane.fixed.obj"
+        npy = tmp_path / "plane.npy"
+        obj = tmp_path / "plane.fixed.obj"
         np.save(npy, sdf)
         fixed.vertices = fixed.vertices / scale + center
         fixed.export(obj)
