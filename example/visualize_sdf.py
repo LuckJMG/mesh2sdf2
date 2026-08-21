@@ -24,7 +24,7 @@ size = sdf.shape[0]
 print(sdf.max(), sdf.min())
 
 # extract level sets
-for i, level in enumerate(levels):
+for level in levels:
     vtx, faces, _, _ = skimage.measure.marching_cubes(sdf, level)
 
     vtx = vtx * (mesh_scale * 2.0 / size) - 1.0
@@ -40,16 +40,14 @@ for i in range(size):
     fig, ax = plt.subplots(figsize=(2.75, 2.75), dpi=300)
     levels_pos = np.logspace(-2, 0, num=num_levels)  # logspace
     levels_neg = -1.0 * levels_pos[::-1]
-    levels = np.concatenate((levels_neg, np.zeros(0), levels_pos), axis=0)
+    levels = np.concatenate((levels_neg, levels_pos))
     colors = plt.get_cmap("Spectral")(np.linspace(0.0, 1.0, num=num_levels * 2 + 1))
 
     sample = array_2d
-    # sample = np.flipud(array_2d)
-    CS = ax.contourf(sample, levels=levels, colors=colors)
+    ax.contourf(sample, levels=levels, colors=colors)
 
     ax.contour(sample, levels=levels, colors="k", linewidths=0.1)
     ax.contour(sample, levels=[0], colors="k", linewidths=0.3)
     ax.axis("off")
 
     plt.savefig(os.path.join(folder, f"{i:03d}.png"))
-    # plt.show()
