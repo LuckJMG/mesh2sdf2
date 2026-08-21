@@ -16,7 +16,7 @@ def test_core_cube_size(benchmark, cube_norm, size):
 @pytest.mark.parametrize("size", [64, 128])
 def test_core_plane_size(benchmark, plane_norm, size):
     """Plane mesh: grid-resolution sweep on a real non-watertight mesh."""
-    v, f = plane_norm
+    v, f = plane_norm[:2]
     sdf = benchmark(mesh2sdf.core.compute, v, f, size)
     assert sdf.shape == (size, size, size)
     assert sdf.dtype == np.float32

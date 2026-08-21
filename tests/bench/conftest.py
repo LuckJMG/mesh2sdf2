@@ -1,11 +1,5 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
-import trimesh
-
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-PLANE_OBJ = REPO_ROOT / "example" / "data" / "plane.obj"
 
 
 def _watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
@@ -36,15 +30,3 @@ def _watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
 def cube_norm() -> tuple[np.ndarray, np.ndarray]:
     v, f = _watertight_cube(half=0.5)
     return v, f
-
-
-@pytest.fixture(scope="session")
-def plane_norm() -> tuple[np.ndarray, np.ndarray]:
-    mesh = trimesh.load(PLANE_OBJ, force="mesh")
-    verts = mesh.vertices
-    bbmin = verts.min(0)
-    bbmax = verts.max(0)
-    center = (bbmin + bbmax) * 0.5
-    scale = 2.0 * 0.8 / (bbmax - bbmin).max()
-    norm = (verts - center) * scale
-    return norm.astype(np.float32), mesh.faces

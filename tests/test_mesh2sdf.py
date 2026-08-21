@@ -166,22 +166,12 @@ class TestExamplePlane:
     def test_plane_obj_exists(self):
         assert PLANE_OBJ.is_file()
 
-    def test_plane_end_to_end(self):
-        mesh = trimesh.load(PLANE_OBJ, force="mesh")
-        assert mesh.vertices.shape[0] > 0
-        assert mesh.faces.shape[0] > 0
-
-        # match example/test.py normalization (mesh_scale=0.8, 10% padding)
-        verts = mesh.vertices
-        bbmin = verts.min(0)
-        bbmax = verts.max(0)
-        center = (bbmin + bbmax) * 0.5
-        scale = 2.0 * 0.8 / (bbmax - bbmin).max()
-        norm = (verts - center) * scale
+    def test_plane_end_to_end(self, plane_norm):
+        v, f, _, _ = plane_norm
 
         size = 64
         sdf, fixed = mesh2sdf.compute(
-            norm, mesh.faces, size, fix=True, level=2 / size, return_mesh=True
+            v, f, size, fix=True, level=2 / size, return_mesh=True
         )
 
         assert sdf.shape == (size, size, size)
@@ -189,18 +179,12 @@ class TestExamplePlane:
         assert isinstance(fixed, trimesh.Trimesh)
         assert fixed.is_watertight
 
-    def test_plane_outputs_persist(self, tmp_path):
-        mesh = trimesh.load(PLANE_OBJ, force="mesh")
-        verts = mesh.vertices
-        bbmin = verts.min(0)
-        bbmax = verts.max(0)
-        center = (bbmin + bbmax) * 0.5
-        scale = 2.0 * 0.8 / (bbmax - bbmin).max()
-        norm = (verts - center) * scale
+    def test_plane_outputs_persist(self, plane_norm, tmp_path):
+        v, f, center, scale = plane_norm
 
         size = 32
         sdf, fixed = mesh2sdf.compute(
-            norm, mesh.faces, size, fix=True, level=2 / size, return_mesh=True
+            v, f, size, fix=True, level=2 / size, return_mesh=True
         )
 
         npy = tmp_path / "plane.npy"

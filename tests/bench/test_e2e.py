@@ -8,7 +8,7 @@ import mesh2sdf
 @pytest.mark.parametrize("size", [64, 128])
 def test_e2e_plane_fix(benchmark, plane_norm, size):
     """End-to-end with fix=True on plane: includes marching-cubes + re-sweep."""
-    v, f = plane_norm
+    v, f = plane_norm[:2]
     sdf = benchmark(mesh2sdf.compute, v, f, size, fix=True, level=2.0 / size)
     assert sdf.shape == (size, size, size)
     assert sdf.dtype == np.float32
@@ -17,7 +17,7 @@ def test_e2e_plane_fix(benchmark, plane_norm, size):
 @pytest.mark.parametrize("size", [64, 128])
 def test_e2e_plane_no_fix(benchmark, plane_norm, size):
     """Control: fix=False isolates the C++ fast-sweep cost."""
-    v, f = plane_norm
+    v, f = plane_norm[:2]
     sdf = benchmark(mesh2sdf.compute, v, f, size, fix=False)
     assert sdf.shape == (size, size, size)
     assert sdf.dtype == np.float32
