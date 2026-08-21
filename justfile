@@ -23,7 +23,11 @@ test:
 
 # run benchmark suite (skip by default in `test`; opt-in here)
 bench:
-    {{py}} -m pytest tests/bench --benchmark-enable --benchmark-min-rounds=3 --benchmark-columns=min,median,max,stddev,iterations --benchmark-sort=mean -v
+    {{py}} -m pytest tests/bench --benchmark-enable --benchmark-min-rounds=3 --benchmark-columns=min,median,max,stddev,iterations --benchmark-sort=mean --benchmark-autosave -v
+
+# run benchmark suite and diff against the most recent saved run (fails on >10% median regression)
+bench-compare:
+    {{py}} -m pytest tests/bench --benchmark-enable --benchmark-min-rounds=3 --benchmark-columns=min,median,max,stddev,iterations --benchmark-sort=mean --benchmark-autosave --benchmark-compare=LAST --benchmark-compare-fail=median:10% -v
 
 # run linting: ruff + clang-format + clang-tidy
 check:

@@ -223,3 +223,6 @@ __marimo__/
 
 # clang tooling
 compile_commands.json
+
+# pytest-benchmark storage (local history; run `just bench` to populate)
+.benchmarks/
