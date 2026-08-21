@@ -47,7 +47,6 @@ check:
 clean:
     rm -rf build/ *.egg-info/ mesh2sdf.egg-info/ mesh2sdf2.egg-info/
     rm -f mesh2sdf/*.so
-    rm -f compile_commands.json
 
 # initialize the project on a new computer
 init:
