@@ -70,9 +70,7 @@ Runtime deps from `pyproject.toml [project.dependencies]`:
 `uv sync` resolves build + runtime + dev via `uv.lock` (populated since v2).
 
 The project has no Python pin in the working tree. The single `.venv` is
-the dev environment and is currently Python 3.14 (uv-managed). The
-system `/usr/bin/python3.14` lacks `Python.h` and cannot build the C++
-extension — uv-managed 3.14 bundles the headers.
+the dev environment and is currently Python 3.14 (uv-managed).
 
 Local dev setup, if `.venv` is missing or built against the wrong Python:
 
