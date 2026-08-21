@@ -20,7 +20,10 @@ Algorithm:
 3. Re-run signed SDF on fixed mesh. Return signed result.
 
 C++ fast-sweep from SDFGen by Christopher Batty. Box hard-coded `[-1, 1]` in
-`csrc/pybind.cpp:27`. `dx = 2/size`. Unchanged from upstream.
+`csrc/pybind.cpp:29`. `dx = 2/size`. The algorithm matches upstream SDFGen,
+but the code diverged from upstream and no longer diffs cleanly against it:
+`csrc/makelevelset3.cpp` splits into per-phase static helpers, and vendored
+headers (`array1.h`, `vec.h`) keep only the surface the build uses.
 
 ## Layout
 

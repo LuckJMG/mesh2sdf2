@@ -170,19 +170,15 @@ static bool point_in_triangle_2d(double x0, double y0, double x1, double y1,
 	return true;
 }
 
-void make_level_set3(const std::vector<Vec3ui> &tri,
-					 const std::vector<Vec3f> &x, const Vec3f &origin, float dx,
-					 int ni, int nj, int nk, Array3f &phi,
-					 const int exact_band) {
-	phi.resize(ni, nj, nk);
-	phi.assign((float)(ni + nj + nk) * dx); // upper bound on distance
-	Array3i closest_tri(ni, nj, nk, -1);
-	Array3i intersection_count(ni, nj, nk,
-							   0); // intersection_count(i,j,k) is # of tri
-								   // intersections in (i-1,i]x{j}x{k}
-	// we begin by initializing distances near the mesh, and figuring out
-	// intersection counts
-	Vec3f ijkmin, ijkmax;
+// initialize distances near the mesh within exact_band cells of each triangle,
+// and record triangle intersections along each grid row for later sign
+// determination
+static void init_distances_and_counts(const std::vector<Vec3ui> &tri,
+									  const std::vector<Vec3f> &x,
+									  const Vec3f &origin, float dx, int ni,
+									  int nj, int nk, const int exact_band,
+									  Array3f &phi, Array3i &closest_tri,
+									  Array3i &intersection_count) {
 	for (unsigned int t = 0; t < tri.size(); ++t) {
 		unsigned int p, q, r;
 		assign(tri[t], p, q, r);
@@ -245,7 +241,13 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 			}
 		}
 	}
-	// and now we fill in the rest of the distances with fast sweeping
+}
+
+// fill in the rest of the distances with fast sweeping
+static void run_fast_sweeping_passes(const std::vector<Vec3ui> &tri,
+									 const std::vector<Vec3f> &x, Array3f &phi,
+									 Array3i &closest_tri, const Vec3f &origin,
+									 float dx) {
 	for (unsigned int pass = 0; pass < 2; ++pass) {
 		sweep(tri, x, phi, closest_tri, origin, dx, +1, +1, +1);
 		sweep(tri, x, phi, closest_tri, origin, dx, -1, -1, -1);
@@ -256,7 +258,12 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 		sweep(tri, x, phi, closest_tri, origin, dx, +1, -1, -1);
 		sweep(tri, x, phi, closest_tri, origin, dx, -1, +1, +1);
 	}
-	// then figure out signs (inside/outside) from intersection counts
+}
+
+// figure out signs (inside/outside) from intersection counts
+static void
+apply_signs_from_intersection_counts(const Array3i &intersection_count,
+									 Array3f &phi, int ni, int nj, int nk) {
 	for (int k = 0; k < nk; ++k) {
 		for (int j = 0; j < nj; ++j) {
 			int total_count = 0;
@@ -269,4 +276,20 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 			}
 		}
 	}
+}
+
+void make_level_set3(const std::vector<Vec3ui> &tri,
+					 const std::vector<Vec3f> &x, const Vec3f &origin, float dx,
+					 int ni, int nj, int nk, Array3f &phi,
+					 const int exact_band) {
+	phi.resize(ni, nj, nk);
+	phi.assign((float)(ni + nj + nk) * dx); // upper bound on distance
+	Array3i closest_tri(ni, nj, nk, -1);
+	Array3i intersection_count(ni, nj, nk,
+							   0); // intersection_count(i,j,k) is # of tri
+								   // intersections in (i-1,i]x{j}x{k}
+	init_distances_and_counts(tri, x, origin, dx, ni, nj, nk, exact_band, phi,
+							  closest_tri, intersection_count);
+	run_fast_sweeping_passes(tri, x, phi, closest_tri, origin, dx);
+	apply_signs_from_intersection_counts(intersection_count, phi, ni, nj, nk);
 }
