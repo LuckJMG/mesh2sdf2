@@ -1,7 +1,13 @@
+import re
+from pathlib import Path
+
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
 
-__version__ = "2.0.0"
+# single source of truth: [project] version in pyproject.toml
+__version__ = re.search(
+    r'^version = "(.*?)"', Path("pyproject.toml").read_text(encoding="utf-8"), re.MULTILINE
+).group(1)
 
 ext_modules = [
     Pybind11Extension(

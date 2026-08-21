@@ -5,8 +5,8 @@ set shell := ["bash", "-uc"]
 # Python interpreter to use (override via PYTHON env var)
 py := env_var_or_default("PYTHON", ".venv/bin/python")
 
-# Project version (read from setup.py at parse time)
-version := `awk -F'"' '/__version__/ {print $2; exit}' setup.py`
+# Project version (single source: [project] version in pyproject.toml)
+version := `awk -F'"' '/^version/ {print $2; exit}' pyproject.toml`
 
 # run the example workflow (default: example/data/plane.obj)
 run mesh="example/data/plane.obj":

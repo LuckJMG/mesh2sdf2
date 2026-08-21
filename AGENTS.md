@@ -37,10 +37,11 @@ headers (`array1.h`, `vec.h`) keep only the surface the build uses.
 - `csrc/vec.h` — `Vec3f`, `Vec3ui` types.
 - `csrc/util.h` — misc helpers.
 - `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
-  + `cmdclass={'build_ext': build_ext}`. `__version__` is the source of
-  truth for the C++ `VERSION_INFO` macro.
+  + `cmdclass={'build_ext': build_ext}`. Derives `__version__` from
+  `pyproject.toml` and passes it to the C++ `VERSION_INFO` macro.
 - `pyproject.toml` — PEP 621 metadata + build-system. `[project]`
-  declares name `mesh2sdf2`, deps, classifiers, urls. `[build-system]`
+  declares name `mesh2sdf2`, `version` (single source of truth for the
+  whole project), deps, classifiers, urls. `[build-system]`
   requires `setuptools>=68, pybind11>=2.13`. `[dependency-groups].dev`
   has `matplotlib` (visualization only).
 - `MANIFEST.in` — graft `csrc/`. Needed for sdist.
@@ -195,8 +196,9 @@ target.
 - `pyproject.toml` has full PEP 621 metadata (ported from `setup.py` in v2).
   All package metadata lives in `pyproject.toml`; `setup.py` only declares
   the extension and `cmdclass`.
-- `setup.py`'s `__version__` must match `pyproject.toml` `version` exactly —
-  the C++ `VERSION_INFO` macro is derived from it.
+- `pyproject.toml` `version` is the single source of truth. `setup.py`
+  derives `__version__` from it at build time, and the justfile parses it
+  for clang-tidy's `-DVERSION_INFO`. Never duplicate the literal elsewhere.
 - `MANIFEST.in` grafts `csrc/`. Without it, sdist missing C++ sources,
   install fails. setuptools auto-includes `LICENSE` at root after the v2 rename.
 - `compute.py:43` re-normalizes fixed mesh to `[-1, 1]` after marching
