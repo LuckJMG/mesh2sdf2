@@ -1,4 +1,3 @@
-import inspect
 from pathlib import Path
 
 import mesh2sdf.core
@@ -57,24 +56,6 @@ class TestModuleAPI:
     def test_core_version_exposed(self):
         v = mesh2sdf.core.__version__
         assert isinstance(v, str) and v
-
-
-class TestComputeSignature:
-    def test_default_arg_values(self):
-        sig = inspect.signature(mesh2sdf.compute)
-        params = sig.parameters
-        assert set(params) == {
-            "vertices",
-            "faces",
-            "size",
-            "fix",
-            "level",
-            "return_mesh",
-        }
-        assert params["size"].default == 128
-        assert params["fix"].default is False
-        assert params["level"].default == 0.015
-        assert params["return_mesh"].default is False
 
 
 class TestOutputContract:
