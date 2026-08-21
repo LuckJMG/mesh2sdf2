@@ -38,14 +38,8 @@ def compute(
 
     # keep the max component of the extracted mesh
     mesh = trimesh.Trimesh(vertices, faces)
-    components = mesh.split(only_watertight=False)
-    bbox = []
-    for c in components:
-        bbmin = c.vertices.min(0)
-        bbmax = c.vertices.max(0)
-        bbox.append((bbmax - bbmin).max())
-    max_component = np.argmax(bbox)
-    mesh = components[max_component]
+    mesh = max(mesh.split(only_watertight=False),
+               key=lambda c: c.extents.max())
     mesh.vertices = mesh.vertices * (2.0 / size) - 1.0  # normalize it to [-1, 1]
 
     # re-compute sdf
