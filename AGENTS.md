@@ -30,10 +30,9 @@ C++ fast-sweep from SDFGen by Christopher Batty. Box hard-coded `[-1, 1]` in
 - `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`.
 - `csrc/makelevelset3.cpp` — fast-sweep algorithm impl.
 - `csrc/makelevelset3.h` — `make_level_set3` decl.
-- `csrc/array1.h`, `array2.h`, `array3.h` — 1/2/3D array types.
+- `csrc/array1.h`, `array3.h` — 1/3D array types.
 - `csrc/vec.h` — `Vec3f`, `Vec3ui` types.
 - `csrc/util.h` — misc helpers.
-- `csrc/main.backup.cpp` — legacy standalone. NOT in `ext_modules`. Ignore.
 - `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
   + `cmdclass={'build_ext': build_ext}`. `__version__` is the source of
   truth for the C++ `VERSION_INFO` macro.
@@ -200,7 +199,6 @@ target.
 - `compute.py:43` re-normalizes fixed mesh to `[-1, 1]` after marching
   cubes. `example/test.py:32` un-scales for output. Keep both in sync if
   you touch box convention.
-- `csrc/main.backup.cpp` has its own OBJ loader. Don't confuse with active code.
 - `csrc/pybind.cpp:14` declares `vertices` as `float`, `faces` as
   `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.
 - `.gitignore` includes `build/`, `*.so`, `__pycache__/`, `.venv/`,
