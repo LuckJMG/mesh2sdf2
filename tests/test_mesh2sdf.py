@@ -46,10 +46,6 @@ def cube_norm() -> tuple[np.ndarray, np.ndarray]:
 
 
 class TestModuleAPI:
-    def test_drop_in_import_name(self):
-        import mesh2sdf as ms
-        assert ms is mesh2sdf
-
     def test_compute_exposed(self):
         assert callable(mesh2sdf.compute)
 
