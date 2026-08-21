@@ -358,8 +358,8 @@ inline T dot(const Vec<N, T> &a, const Vec<N, T> &b) {
 }
 
 template <class T> inline Vec<2, T> rotate(const Vec<2, T> &a, float angle) {
-	T c = cos(angle);
-	T s = sin(angle);
+	T c = std::cos(angle);
+	T s = std::sin(angle);
 	return Vec<2, T>(c * a[0] - s * a[1],
 					 s * a[0] + c * a[1]); // counter-clockwise rotation
 }

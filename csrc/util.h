@@ -287,7 +287,7 @@ inline double randhashd(unsigned int seed) {
 	return randhash(seed) / (double)UINT_MAX;
 }
 inline float randhashf(unsigned int seed) {
-	return randhash(seed) / (float)UINT_MAX;
+	return (float)randhash(seed) / (float)UINT_MAX;
 }
 
 // returns repeatable stateless pseudo-random number in [a,b]
@@ -295,7 +295,7 @@ inline double randhashd(unsigned int seed, double a, double b) {
 	return (b - a) * randhash(seed) / (double)UINT_MAX + a;
 }
 inline float randhashf(unsigned int seed, float a, float b) {
-	return ((b - a) * randhash(seed) / (float)UINT_MAX + a);
+	return ((b - a) * (float)randhash(seed) / (float)UINT_MAX + a);
 }
 
 inline int intlog2(int x) {
@@ -487,7 +487,7 @@ void write_matlab(std::ostream &output, const std::vector<T> &a,
 	if (column_vector) {
 		output << "'";
 	}
-	output << ";" << std::endl;
+	output << ";" << "\n";
 	output.precision(old_precision);
 }
 

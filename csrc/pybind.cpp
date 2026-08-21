@@ -11,15 +11,17 @@
 
 namespace py = pybind11;
 
-py::array_t<float> compute(py::array_t<float> vertices,
-						   py::array_t<unsigned int> faces, int size) {
+py::array_t<float> compute(const py::array_t<float> &vertices,
+						   const py::array_t<unsigned int> &faces, int size) {
 	// input
 	std::vector<Vec3f> V;
+	V.reserve(vertices.shape(0));
 	for (int i = 0; i < vertices.shape(0); ++i) {
 		V.push_back(
 			Vec3f(vertices.at(i, 0), vertices.at(i, 1), vertices.at(i, 2)));
 	}
 	std::vector<Vec3ui> F;
+	F.reserve(faces.shape(0));
 	for (int i = 0; i < faces.shape(0); ++i) {
 		F.push_back(Vec3ui(faces.at(i, 0), faces.at(i, 1), faces.at(i, 2)));
 	}

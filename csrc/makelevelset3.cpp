@@ -96,8 +96,8 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 	for (int k = k0; k != k1; k += dk) {
 		for (int j = j0; j != j1; j += dj) {
 			for (int i = i0; i != i1; i += di) {
-				Vec3f gx(i * dx + origin[0], j * dx + origin[1],
-						 k * dx + origin[2]);
+				Vec3f gx((float)i * dx + origin[0], (float)j * dx + origin[1],
+						 (float)k * dx + origin[2]);
 				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i - di,
 								j, k);
 				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i,
@@ -126,24 +126,16 @@ static int orientation(double x1, double y1, double x2, double y2,
 	if (twice_signed_area > 0) {
 		return 1;
 	}
-	else if (twice_signed_area < 0) {
+	if (twice_signed_area < 0) {
 		return -1;
 	}
-	else if (y2 > y1) {
+	if (y2 > y1 || (y2 == y1 && x1 > x2)) {
 		return 1;
 	}
-	else if (y2 < y1) {
+	if (y2 < y1 || (y2 == y1 && x1 < x2)) {
 		return -1;
 	}
-	else if (x1 > x2) {
-		return 1;
-	}
-	else if (x1 < x2) {
-		return -1;
-	}
-	else {
-		return 0; // only true when x1==x2 and y1==y2
-	}
+	return 0; // only true when x1==x2 and y1==y2
 }
 
 // robust test of (x0,y0) in the triangle (x1,y1)-(x2,y2)-(x3,y3)
@@ -183,7 +175,7 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 					 int ni, int nj, int nk, Array3f &phi,
 					 const int exact_band) {
 	phi.resize(ni, nj, nk);
-	phi.assign((ni + nj + nk) * dx); // upper bound on distance
+	phi.assign((float)(ni + nj + nk) * dx); // upper bound on distance
 	Array3i closest_tri(ni, nj, nk, -1);
 	Array3i intersection_count(ni, nj, nk,
 							   0); // intersection_count(i,j,k) is # of tri
@@ -214,12 +206,13 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 		for (int k = k0; k <= k1; ++k) {
 			for (int j = j0; j <= j1; ++j) {
 				for (int i = i0; i <= i1; ++i) {
-					Vec3f gx(i * dx + origin[0], j * dx + origin[1],
-							 k * dx + origin[2]);
+					Vec3f gx((float)i * dx + origin[0],
+							 (float)j * dx + origin[1],
+							 (float)k * dx + origin[2]);
 					float d = point_triangle_distance(gx, x[p], x[q], x[r]);
 					if (d < phi(i, j, k)) {
 						phi(i, j, k) = d;
-						closest_tri(i, j, k) = t;
+						closest_tri(i, j, k) = (int)t;
 					}
 				}
 			}

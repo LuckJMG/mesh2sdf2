@@ -200,17 +200,19 @@ template <typename T> struct Array1 {
 	}
 
 	Array1<T> &operator=(const Array1<T> &x) {
-		if (max_n < x.n) {
-			T *new_data = (T *)std::malloc(x.n * sizeof(T));
-			if (!new_data) {
-				throw std::bad_alloc();
+		if (this != &x) {
+			if (max_n < x.n) {
+				T *new_data = (T *)std::malloc(x.n * sizeof(T));
+				if (!new_data) {
+					throw std::bad_alloc();
+				}
+				std::free(data);
+				data = new_data;
+				max_n = x.n;
 			}
-			std::free(data);
-			data = new_data;
-			max_n = x.n;
+			n = x.n;
+			std::memcpy(data, x.data, n * sizeof(T));
 		}
-		n = x.n;
-		std::memcpy(data, x.data, n * sizeof(T));
 		return *this;
 	}
 
@@ -505,7 +507,7 @@ template <typename T> struct Array1 {
 
 	unsigned long size(void) const { return n; }
 
-	void swap(Array1<T> &x) {
+	void swap(Array1<T> &x) noexcept {
 		std::swap(n, x.n);
 		std::swap(max_n, x.max_n);
 		std::swap(data, x.data);
@@ -845,7 +847,7 @@ template <typename T> struct WrapArray1 {
 
 	unsigned long size(void) const { return n; }
 
-	void swap(WrapArray1<T> &x) {
+	void swap(WrapArray1<T> &x) noexcept {
 		std::swap(n, x.n);
 		std::swap(max_n, x.max_n);
 		std::swap(data, x.data);
