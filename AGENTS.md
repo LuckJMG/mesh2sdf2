@@ -155,6 +155,32 @@ uv sync                                       # installs dev group
 uv run python example/visualize_sdf.py
 ```
 
+## Benchmarking
+
+Pytest-driven benchmarks live in `tests/bench/` and use `pytest-benchmark`.
+Default `addopts` in `pyproject.toml` sets `--benchmark-disable`, so the
+unit suite (`just test`) does not run benchmarks.
+
+Run the full benchmark suite:
+
+```sh
+just bench
+```
+
+This invokes `pytest tests/bench --benchmark-enable ...` and prints a
+comparison table with `min`, `median`, `max`, `stddev`, `iterations`.
+
+Scenarios:
+
+| File | Scope | What it covers |
+|---|---|---|
+| `tests/bench/test_core.py` | `mesh2sdf.core.compute` (C++ fast-sweep) | Cube @ {32,64,128}, plane @ {64,128}, icosphere subdivisions {2,3,4} @ size=128 |
+| `tests/bench/test_e2e.py` | `mesh2sdf.compute` (full wrapper) | Plane `fix=True` and `fix=False` @ {64,128}, icosphere `fix=True` @ {64,128} |
+
+Fixtures in `tests/bench/conftest.py` are session-scoped where possible.
+Numbers are hardware-specific; treat them as a local baseline, not a
+target.
+
 ## Gotchas
 
 - **This is a fork.** Distribution is `mesh2sdf2`, but `import mesh2sdf`

@@ -21,6 +21,10 @@ build:
 test:
     {{py}} -m pytest tests/test_mesh2sdf.py -v
 
+# run benchmark suite (skip by default in `test`; opt-in here)
+bench:
+    {{py}} -m pytest tests/bench --benchmark-enable --benchmark-min-rounds=3 --benchmark-columns=min,median,max,stddev,iterations --benchmark-sort=mean -v
+
 # run linting: ruff + clang-format + clang-tidy
 check:
     #!/usr/bin/env bash

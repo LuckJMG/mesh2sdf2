@@ -48,5 +48,9 @@ dev = [
     "matplotlib",
     "pybind11>=2.13",
     "pytest",
+    "pytest-benchmark",
     "ruff>=0.16.4",
 ]
+
+[tool.pytest.ini_options]
+addopts = "--benchmark-disable"
