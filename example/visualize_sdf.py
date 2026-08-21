@@ -6,48 +6,51 @@ import numpy as np
 import skimage.measure
 import trimesh
 
-filename = (
-    sys.argv[1]
-    if len(sys.argv) > 1
-    else os.path.join(os.path.dirname(__file__), "data", "plane.npy")
-)
 
-mesh_scale = 0.8
-levels = [-0.02, 0.0, 0.02]
+def export_level_sets(sdf, folder):
+    mesh_scale = 0.8
+    for level in (-0.02, 0.0, 0.02):
+        vtx, faces, _, _ = skimage.measure.marching_cubes(sdf, level)
 
-folder = filename[:-4]
-if not os.path.exists(folder):
-    os.makedirs(folder)
-
-sdf = np.load(filename)
-size = sdf.shape[0]
-print(sdf.max(), sdf.min())
-
-# extract level sets
-for level in levels:
-    vtx, faces, _, _ = skimage.measure.marching_cubes(sdf, level)
-
-    vtx = vtx * (mesh_scale * 2.0 / size) - 1.0
-    mesh = trimesh.Trimesh(vtx, faces)
-    mesh.export(os.path.join(folder, f"l{level:.2f}.obj"))
+        vtx = vtx * (mesh_scale * 2.0 / sdf.shape[0]) - 1.0
+        mesh = trimesh.Trimesh(vtx, faces)
+        mesh.export(os.path.join(folder, f"l{level:.2f}.obj"))
 
 
-# draw image
-for i in range(size):
-    array_2d = sdf[:, :, i]
-
+def render_slices(sdf, folder):
     num_levels = 6
-    fig, ax = plt.subplots(figsize=(2.75, 2.75), dpi=300)
-    levels_pos = np.logspace(-2, 0, num=num_levels)  # logspace
-    levels_neg = -1.0 * levels_pos[::-1]
-    levels = np.concatenate((levels_neg, levels_pos))
+    levels_pos = np.logspace(-2, 0, num=num_levels)
+    levels = np.concatenate((-1.0 * levels_pos[::-1], levels_pos))
     colors = plt.get_cmap("Spectral")(np.linspace(0.0, 1.0, num=num_levels * 2 + 1))
 
-    sample = array_2d
-    ax.contourf(sample, levels=levels, colors=colors)
+    for i in range(sdf.shape[0]):
+        fig, ax = plt.subplots(figsize=(2.75, 2.75), dpi=300)
 
-    ax.contour(sample, levels=levels, colors="k", linewidths=0.1)
-    ax.contour(sample, levels=[0], colors="k", linewidths=0.3)
-    ax.axis("off")
+        ax.contourf(sdf[:, :, i], levels=levels, colors=colors)
+        ax.contour(sdf[:, :, i], levels=levels, colors="k", linewidths=0.1)
+        ax.contour(sdf[:, :, i], levels=[0], colors="k", linewidths=0.3)
+        ax.axis("off")
 
-    plt.savefig(os.path.join(folder, f"{i:03d}.png"))
+        plt.savefig(os.path.join(folder, f"{i:03d}.png"))
+        plt.close(fig)
+
+
+def main():
+    filename = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.path.join(os.path.dirname(__file__), "data", "plane.npy")
+    )
+
+    folder = filename[:-4]
+    os.makedirs(folder, exist_ok=True)
+
+    sdf = np.load(filename)
+    print(sdf.max(), sdf.min())
+
+    export_level_sets(sdf, folder)
+    render_slices(sdf, folder)
+
+
+if __name__ == "__main__":
+    main()
