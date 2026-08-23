@@ -155,7 +155,7 @@ Pass if `<output>.fixed.obj` and `<output>.npy` produced without traceback.
 Version sanity:
 
 ```sh
-.venv/bin/python -c "import mesh2sdf.core; print(mesh2sdf.core.__version__)"   # 2.0.0
+.venv/bin/python -c "import mesh2sdf.core; print(mesh2sdf.core.__version__)"   # 2.1.1
 ```
 
 Visualization needs `matplotlib` (in `[dependency-groups].dev`):
