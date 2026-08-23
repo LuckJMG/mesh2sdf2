@@ -1,5 +1,9 @@
 #include "makelevelset3.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 struct SegmentData {
 	Vec3f dx;
 	double m2;
@@ -76,6 +80,24 @@ static void check_neighbour(const std::vector<TriangleData> &triangle_data,
 	}
 }
 
+static void update_cell(const std::vector<TriangleData> &triangle_data,
+						Array3f &phi, Array3i &closest_tri, const Vec3f &origin,
+						float dx, int i, int j, int k, int di, int dj, int dk) {
+	Vec3f gx((float)i * dx + origin[0], (float)j * dx + origin[1],
+			 (float)k * dx + origin[2]);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j, k);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj, k);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
+					j - dj, k);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j, k - dk);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j,
+					k - dk);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj,
+					k - dk);
+	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
+					j - dj, k - dk);
+}
+
 static void sweep(const std::vector<TriangleData> &triangle_data, Array3f &phi,
 				  Array3i &closest_tri, const Vec3f &origin, float dx, int di,
 				  int dj, int dk) {
@@ -109,26 +131,55 @@ static void sweep(const std::vector<TriangleData> &triangle_data, Array3f &phi,
 	for (int k = k0; k != k1; k += dk) {
 		for (int j = j0; j != j1; j += dj) {
 			for (int i = i0; i != i1; i += di) {
-				Vec3f gx((float)i * dx + origin[0], (float)j * dx + origin[1],
-						 (float)k * dx + origin[2]);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
-								i - di, j, k);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
-								j - dj, k);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
-								i - di, j - dj, k);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
-								j, k - dk);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
-								i - di, j, k - dk);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
-								j - dj, k - dk);
-				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
-								i - di, j - dj, k - dk);
+				update_cell(triangle_data, phi, closest_tri, origin, dx, i, j,
+							k, di, dj, dk);
 			}
 		}
 	}
 }
+
+#ifdef _OPENMP
+static constexpr size_t sweep_parallel_min_cells = 1 << 18;
+
+// Wavefront-parallel variant of sweep(). Cells are grouped by w = di*i + dj*j +
+// dk*k. Every source read by a cell lies 1-3 levels behind it, and cells on one
+// level never touch each other, so each level runs as one omp parallel for.
+// Level order is a topological order of the same dependency DAG as the loop
+// above, so results are bit-identical to the serial sweep at any thread count.
+static void sweep_parallel(const std::vector<TriangleData> &triangle_data,
+						   Array3f &phi, Array3i &closest_tri,
+						   const Vec3f &origin, float dx, int di, int dj,
+						   int dk) {
+	const int i_lo = di > 0 ? 1 : 0;
+	const int i_hi = di > 0 ? phi.ni - 1 : phi.ni - 2;
+	const int j_lo = dj > 0 ? 1 : 0;
+	const int j_hi = dj > 0 ? phi.nj - 1 : phi.nj - 2;
+	const int k_lo = dk > 0 ? 1 : 0;
+	const int k_hi = dk > 0 ? phi.nk - 1 : phi.nk - 2;
+	int w_min = (di > 0 ? di * i_lo : di * i_hi) +
+				(dj > 0 ? dj * j_lo : dj * j_hi) +
+				(dk > 0 ? dk * k_lo : dk * k_hi);
+	int w_max = (di > 0 ? di * i_hi : di * i_lo) +
+				(dj > 0 ? dj * j_hi : dj * j_lo) +
+				(dk > 0 ? dk * k_hi : dk * k_lo);
+	for (int w = w_min; w <= w_max; ++w) {
+#pragma omp parallel for schedule(static)
+		for (int j = j_lo; j <= j_hi; ++j) {
+			int m = w - dj * j;
+			int t_lo = di > 0 ? i_lo : -i_hi;
+			int t_hi = di > 0 ? i_hi : -i_lo;
+			int a = m - t_hi, b = m - t_lo;
+			int klo = max(k_lo, dk > 0 ? a : -b);
+			int khi = min(k_hi, dk > 0 ? b : -a);
+			for (int k = klo; k <= khi; ++k) {
+				int i = di * (m - dk * k);
+				update_cell(triangle_data, phi, closest_tri, origin, dx, i, j,
+							k, di, dj, dk);
+			}
+		}
+	}
+}
+#endif
 
 // calculate twice signed area of triangle (0,0)-(x1,y1)-(x2,y2)
 // return an SOS-determined sign (-1, +1, or 0 only if it's a truly degenerate
@@ -279,15 +330,23 @@ static void
 run_fast_sweeping_passes(const std::vector<TriangleData> &triangle_data,
 						 Array3f &phi, Array3i &closest_tri,
 						 const Vec3f &origin, float dx) {
+	void (*sweep_once)(const std::vector<TriangleData> &, Array3f &, Array3i &,
+					   const Vec3f &, float, int, int, int) = sweep;
+#ifdef _OPENMP
+	if (omp_get_max_threads() > 1 &&
+		(size_t)phi.ni * phi.nj * phi.nk >= sweep_parallel_min_cells) {
+		sweep_once = sweep_parallel;
+	}
+#endif
 	for (unsigned int pass = 0; pass < 2; ++pass) {
-		sweep(triangle_data, phi, closest_tri, origin, dx, +1, +1, +1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, -1, -1, -1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, +1, +1, -1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, -1, -1, +1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, +1, -1, +1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, -1, +1, -1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, +1, -1, -1);
-		sweep(triangle_data, phi, closest_tri, origin, dx, -1, +1, +1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, +1, +1, +1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, -1, -1, -1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, +1, +1, -1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, -1, -1, +1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, +1, -1, +1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, -1, +1, -1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, +1, -1, -1);
+		sweep_once(triangle_data, phi, closest_tri, origin, dx, -1, +1, +1);
 	}
 }
 

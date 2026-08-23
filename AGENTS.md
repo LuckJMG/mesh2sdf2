@@ -31,13 +31,21 @@ headers (`array1.h`, `vec.h`) keep only the surface the build uses.
   preserved for drop-in use.
 - `mesh2sdf/compute.py` — wrap `mesh2sdf.core.compute`. Run `fix=True` path.
 - `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`.
-- `csrc/makelevelset3.cpp` — fast-sweep algorithm impl.
+- `csrc/makelevelset3.cpp` — fast-sweep algorithm impl. The sweep has two
+  paths: legacy sequential, and a wavefront-parallel variant (cells grouped
+  by `di*i+dj*j+dk*k`, one `omp parallel for` per level). Dispatch picks the
+  parallel path only with OpenMP, >1 threads, and grids ≥ 2^18 cells.
+  Level order is a topological order of the same dependency DAG as the
+  sequential walk: results are bit-identical at any thread count.
+  `OMP_NUM_THREADS=1` forces the legacy path. Guarded by
+  `tests/test_sweep_equivalence.py`.
 - `csrc/makelevelset3.h` — `make_level_set3` decl.
 - `csrc/array1.h`, `array3.h` — 1/3D array types.
 - `csrc/vec.h` — `Vec3f`, `Vec3ui` types.
 - `csrc/util.h` — misc helpers.
 - `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
-  + `cmdclass={'build_ext': build_ext}`. Derives `__version__` from
+  + `cmdclass={'build_ext': build_ext}`. Adds OpenMP flags (`-fopenmp`,
+  `/openmp` on MSVC). Derives `__version__` from
   `pyproject.toml` and passes it to the C++ `VERSION_INFO` macro.
 - `pyproject.toml` — PEP 621 metadata + build-system. `[project]`
   declares name `mesh2sdf2`, `version` (single source of truth for the
