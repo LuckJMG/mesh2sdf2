@@ -71,6 +71,11 @@ class TestOutputContract:
         sdf = mesh2sdf.compute(v, f, size=32)
         assert sdf.dtype == np.float32
 
+    def test_size_below_two_rejected(self, cube_norm):
+        v, f = cube_norm
+        with pytest.raises(ValueError):
+            mesh2sdf.compute(v, f, size=1)
+
     def test_return_mesh_paths(self, cube_norm):
         v, f = cube_norm
         only = mesh2sdf.compute(v, f, size=32)
@@ -115,23 +120,49 @@ class TestAlgorithmCorrectness:
         v, f = cube_norm
         size = 64
         sdf = mesh2sdf.compute(v, f, size=size)
-        # cube face x=+0.5 lies at grid x = (0.5+1)/2 * 64 = 48
-        assert abs(sdf[48, 32, 32]) < 0.1
-        assert abs(sdf[32, 48, 32]) < 0.1
-        assert abs(sdf[32, 32, 48]) < 0.1
+        # cube face x=+0.5 lies at grid x = (0.5+1)/2 * 63 = 47.25
+        assert abs(sdf[47, 32, 32]) < 0.1
+        assert abs(sdf[32, 47, 32]) < 0.1
+        assert abs(sdf[32, 32, 47]) < 0.1
 
     def test_vertices_project_to_zero(self, cube_norm):
         v, f = cube_norm
         size = 64
         sdf = mesh2sdf.compute(v, f, size=size)
         for vert in v:
-            ix = round((vert[0] + 1.0) * size / 2.0)
-            iy = round((vert[1] + 1.0) * size / 2.0)
-            iz = round((vert[2] + 1.0) * size / 2.0)
+            ix = round((vert[0] + 1.0) * (size - 1) / 2.0)
+            iy = round((vert[1] + 1.0) * (size - 1) / 2.0)
+            iz = round((vert[2] + 1.0) * (size - 1) / 2.0)
             ix = max(0, min(size - 1, ix))
             iy = max(0, min(size - 1, iy))
             iz = max(0, min(size - 1, iz))
             assert abs(sdf[ix, iy, iz]) < 0.1
+
+
+class TestGridAlignment:
+    """Grid spans [-1, 1] inclusive: `size` samples with spacing 2/(size-1)."""
+
+    def test_boundary_planes_lie_on_samples(self):
+        # cube faces flush with the [-1, 1] box walls: boundary samples sit on
+        # the surface, so their distance is zero (old dx=2/size missed +1)
+        v, f = _watertight_cube(half=1.0)
+        size = 64
+        sdf = mesh2sdf.compute(v, f, size=size)
+        mid = size // 2
+        assert abs(sdf[0, mid, mid]) < 1e-5
+        assert abs(sdf[mid, 0, mid]) < 1e-5
+        assert abs(sdf[mid, mid, size - 1]) < 1e-5
+
+    def test_fixed_mesh_spans_full_grid(self):
+        v, f = _watertight_cube(half=1.0)
+        size = 64
+        _, fixed = mesh2sdf.compute(
+            v, f, size, fix=True, level=1e-3, return_mesh=True
+        )
+        # reconstructed surface reaches both box walls in the same frame
+        for axis in range(3):
+            assert abs(fixed.vertices[:, axis].min() + 1.0) < 0.01
+            assert abs(fixed.vertices[:, axis].max() - 1.0) < 0.01
 
 
 class TestFixPath:

@@ -40,7 +40,7 @@ def compute(
     mesh = trimesh.Trimesh(vertices, faces)
     mesh = max(mesh.split(only_watertight=False),
                key=lambda c: c.extents.max())
-    mesh.vertices = mesh.vertices * (2.0 / size) - 1.0  # normalize it to [-1, 1]
+    mesh.vertices = mesh.vertices * (2.0 / (size - 1)) - 1.0  # normalize it to [-1, 1]
 
     # re-compute sdf
     sdf = mesh2sdf.core.compute(mesh.vertices, mesh.faces, size)

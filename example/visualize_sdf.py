@@ -12,7 +12,7 @@ def export_level_sets(sdf, folder):
     for level in (-0.02, 0.0, 0.02):
         vtx, faces, _, _ = skimage.measure.marching_cubes(sdf, level)
 
-        vtx = vtx * (mesh_scale * 2.0 / sdf.shape[0]) - 1.0
+        vtx = vtx * (mesh_scale * 2.0 / (sdf.shape[0] - 1)) - 1.0
         mesh = trimesh.Trimesh(vtx, faces)
         mesh.export(os.path.join(folder, f"l{level:.2f}.obj"))
 

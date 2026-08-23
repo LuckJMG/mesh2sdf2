@@ -29,7 +29,10 @@ py::array_t<float> compute(const py::array_t<float> &vertices,
 	// bounding box
 	Vec3f bbmin(-1.0f, -1.0f, -1.0f);
 	Vec3f bbmax(1.0f, 1.0f, 1.0f);
-	float dx = 2.0f / (float)size;
+	if (size < 2) {
+		throw py::value_error("size must be at least 2");
+	}
+	float dx = 2.0f / (float)(size - 1);
 
 	// compute level sets
 	Array3f grid;
