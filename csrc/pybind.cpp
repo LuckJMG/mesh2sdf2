@@ -1,6 +1,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
+#include <cstring>
 #include <vector>
 
 #include "makelevelset3.h"
@@ -39,13 +40,8 @@ py::array_t<float> compute(const py::array_t<float> &vertices,
 
 	// output
 	py::array_t<float> sdf({size, size, size});
-	for (int x = 0; x < size; x++) {
-		for (int y = 0; y < size; y++) {
-			for (int z = 0; z < size; z++) {
-				sdf.mutable_at(x, y, z) = grid(x, y, z);
-			}
-		}
-	}
+	std::memcpy(sdf.mutable_data(), grid.a.data,
+				(size_t)size * size * size * sizeof(float));
 	return sdf;
 }
 
