@@ -32,7 +32,10 @@ py::array_t<float> compute(const py::array_t<float> &vertices,
 
 	// compute level sets
 	Array3f grid;
-	make_level_set3(F, V, bbmin, dx, size, size, size, grid);
+	{
+		py::gil_scoped_release release;
+		make_level_set3(F, V, bbmin, dx, size, size, size, grid);
+	}
 
 	// output
 	py::array_t<float> sdf({size, size, size});
