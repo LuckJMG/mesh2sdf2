@@ -1,12 +1,22 @@
 #include "makelevelset3.h"
 
+struct SegmentData {
+	Vec3f dx;
+	double m2;
+};
+
+struct TriangleData {
+	Vec3f x1, x2, x3;
+	Vec3f x13, x23;
+	float m13, m23, d, invdet;
+	SegmentData edge12, edge13, edge23;
+};
+
 // find distance x0 is from segment x1-x2
 static float point_segment_distance(const Vec3f &x0, const Vec3f &x1,
-									const Vec3f &x2) {
-	Vec3f dx(x2 - x1);
-	double m2 = mag2(dx);
+									const Vec3f &x2, const SegmentData &edge) {
 	// find parameter value of closest point on segment
-	float s12 = (float)(dot(x2 - x0, dx) / m2);
+	float s12 = (float)(dot(x2 - x0, edge.dx) / edge.m2);
 	if (s12 < 0) {
 		s12 = 0;
 	}
@@ -18,44 +28,47 @@ static float point_segment_distance(const Vec3f &x0, const Vec3f &x1,
 }
 
 // find distance x0 is from triangle x1-x2-x3
-static float point_triangle_distance(const Vec3f &x0, const Vec3f &x1,
-									 const Vec3f &x2, const Vec3f &x3) {
+static float point_triangle_distance(const Vec3f &x0,
+									 const TriangleData &triangle) {
 	// first find barycentric coordinates of closest point on infinite plane
-	Vec3f x13(x1 - x3), x23(x2 - x3), x03(x0 - x3);
-	float m13 = mag2(x13), m23 = mag2(x23), d = dot(x13, x23);
-	float invdet = 1.f / max(m13 * m23 - d * d, 1e-30f);
-	float a = dot(x13, x03), b = dot(x23, x03);
+	Vec3f x03(x0 - triangle.x3);
+	float a = dot(triangle.x13, x03), b = dot(triangle.x23, x03);
 	// the barycentric coordinates themselves
-	float w23 = invdet * (m23 * a - d * b);
-	float w31 = invdet * (m13 * b - d * a);
+	float w23 = triangle.invdet * (triangle.m23 * a - triangle.d * b);
+	float w31 = triangle.invdet * (triangle.m13 * b - triangle.d * a);
 	float w12 = 1 - w23 - w31;
 	if (w23 >= 0 && w31 >= 0 && w12 >= 0) { // if we're inside the triangle
-		return dist(x0, w23 * x1 + w31 * x2 + w12 * x3);
+		return dist(x0,
+					w23 * triangle.x1 + w31 * triangle.x2 + w12 * triangle.x3);
 	}
 	else {			   // we have to clamp to one of the edges
 		if (w23 > 0) { // this rules out edge 2-3 for us
-			return min(point_segment_distance(x0, x1, x2),
-					   point_segment_distance(x0, x1, x3));
+			return min(point_segment_distance(x0, triangle.x1, triangle.x2,
+											  triangle.edge12),
+					   point_segment_distance(x0, triangle.x1, triangle.x3,
+											  triangle.edge13));
 		}
 		else if (w31 > 0) { // this rules out edge 1-3
-			return min(point_segment_distance(x0, x1, x2),
-					   point_segment_distance(x0, x2, x3));
+			return min(point_segment_distance(x0, triangle.x1, triangle.x2,
+											  triangle.edge12),
+					   point_segment_distance(x0, triangle.x2, triangle.x3,
+											  triangle.edge23));
 		}
 		else { // w12 must be >0, ruling out edge 1-2
-			return min(point_segment_distance(x0, x1, x3),
-					   point_segment_distance(x0, x2, x3));
+			return min(point_segment_distance(x0, triangle.x1, triangle.x3,
+											  triangle.edge13),
+					   point_segment_distance(x0, triangle.x2, triangle.x3,
+											  triangle.edge23));
 		}
 	}
 }
 
-static void check_neighbour(const std::vector<Vec3ui> &tri,
-							const std::vector<Vec3f> &x, Array3f &phi,
-							Array3i &closest_tri, const Vec3f &gx, int i0,
-							int j0, int k0, int i1, int j1, int k1) {
+static void check_neighbour(const std::vector<TriangleData> &triangle_data,
+							Array3f &phi, Array3i &closest_tri, const Vec3f &gx,
+							int i0, int j0, int k0, int i1, int j1, int k1) {
 	if (closest_tri(i1, j1, k1) >= 0) {
-		unsigned int p, q, r;
-		assign(tri[closest_tri(i1, j1, k1)], p, q, r);
-		float d = point_triangle_distance(gx, x[p], x[q], x[r]);
+		const TriangleData &triangle = triangle_data[closest_tri(i1, j1, k1)];
+		float d = point_triangle_distance(gx, triangle);
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
 			closest_tri(i0, j0, k0) = closest_tri(i1, j1, k1);
@@ -63,9 +76,9 @@ static void check_neighbour(const std::vector<Vec3ui> &tri,
 	}
 }
 
-static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
-				  Array3f &phi, Array3i &closest_tri, const Vec3f &origin,
-				  float dx, int di, int dj, int dk) {
+static void sweep(const std::vector<TriangleData> &triangle_data, Array3f &phi,
+				  Array3i &closest_tri, const Vec3f &origin, float dx, int di,
+				  int dj, int dk) {
 	int i0, i1;
 	if (di > 0) {
 		i0 = 1;
@@ -98,20 +111,20 @@ static void sweep(const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
 			for (int i = i0; i != i1; i += di) {
 				Vec3f gx((float)i * dx + origin[0], (float)j * dx + origin[1],
 						 (float)k * dx + origin[2]);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i - di,
-								j, k);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i,
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+								i - di, j, k);
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
 								j - dj, k);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i - di,
-								j - dj, k);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i, j,
-								k - dk);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i - di,
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+								i - di, j - dj, k);
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
 								j, k - dk);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i,
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+								i - di, j, k - dk);
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
 								j - dj, k - dk);
-				check_neighbour(tri, x, phi, closest_tri, gx, i, j, k, i - di,
-								j - dj, k - dk);
+				check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+								i - di, j - dj, k - dk);
 			}
 		}
 	}
@@ -173,15 +186,33 @@ static bool point_in_triangle_2d(double x0, double y0, double x1, double y1,
 // initialize distances near the mesh within exact_band cells of each triangle,
 // and record triangle intersections along each grid row for later sign
 // determination
-static void init_distances_and_counts(const std::vector<Vec3ui> &tri,
-									  const std::vector<Vec3f> &x,
-									  const Vec3f &origin, float dx, int ni,
-									  int nj, int nk, const int exact_band,
-									  Array3f &phi, Array3i &closest_tri,
-									  Array3i &intersection_count) {
+static void init_distances_and_counts(
+	const std::vector<Vec3ui> &tri, const std::vector<Vec3f> &x,
+	const Vec3f &origin, float dx, int ni, int nj, int nk, const int exact_band,
+	Array3f &phi, Array3i &closest_tri, Array3i &intersection_count,
+	std::vector<TriangleData> &triangle_data) {
+	triangle_data.resize(tri.size());
 	for (unsigned int t = 0; t < tri.size(); ++t) {
 		unsigned int p, q, r;
 		assign(tri[t], p, q, r);
+		TriangleData &triangle = triangle_data[t];
+		triangle.x1 = x[p];
+		triangle.x2 = x[q];
+		triangle.x3 = x[r];
+		triangle.x13 = triangle.x1 - triangle.x3;
+		triangle.x23 = triangle.x2 - triangle.x3;
+		triangle.m13 = mag2(triangle.x13);
+		triangle.m23 = mag2(triangle.x23);
+		triangle.d = dot(triangle.x13, triangle.x23);
+		triangle.invdet =
+			1.f /
+			max(triangle.m13 * triangle.m23 - triangle.d * triangle.d, 1e-30f);
+		triangle.edge12 = {triangle.x2 - triangle.x1,
+						   mag2(triangle.x2 - triangle.x1)};
+		triangle.edge13 = {triangle.x3 - triangle.x1,
+						   mag2(triangle.x3 - triangle.x1)};
+		triangle.edge23 = {triangle.x3 - triangle.x2,
+						   mag2(triangle.x3 - triangle.x2)};
 		// coordinates in grid to high precision
 		double fip = ((double)x[p][0] - origin[0]) / dx,
 			   fjp = ((double)x[p][1] - origin[1]) / dx,
@@ -205,7 +236,7 @@ static void init_distances_and_counts(const std::vector<Vec3ui> &tri,
 					Vec3f gx((float)i * dx + origin[0],
 							 (float)j * dx + origin[1],
 							 (float)k * dx + origin[2]);
-					float d = point_triangle_distance(gx, x[p], x[q], x[r]);
+					float d = point_triangle_distance(gx, triangle);
 					if (d < phi(i, j, k)) {
 						phi(i, j, k) = d;
 						closest_tri(i, j, k) = (int)t;
@@ -244,19 +275,19 @@ static void init_distances_and_counts(const std::vector<Vec3ui> &tri,
 }
 
 // fill in the rest of the distances with fast sweeping
-static void run_fast_sweeping_passes(const std::vector<Vec3ui> &tri,
-									 const std::vector<Vec3f> &x, Array3f &phi,
-									 Array3i &closest_tri, const Vec3f &origin,
-									 float dx) {
+static void
+run_fast_sweeping_passes(const std::vector<TriangleData> &triangle_data,
+						 Array3f &phi, Array3i &closest_tri,
+						 const Vec3f &origin, float dx) {
 	for (unsigned int pass = 0; pass < 2; ++pass) {
-		sweep(tri, x, phi, closest_tri, origin, dx, +1, +1, +1);
-		sweep(tri, x, phi, closest_tri, origin, dx, -1, -1, -1);
-		sweep(tri, x, phi, closest_tri, origin, dx, +1, +1, -1);
-		sweep(tri, x, phi, closest_tri, origin, dx, -1, -1, +1);
-		sweep(tri, x, phi, closest_tri, origin, dx, +1, -1, +1);
-		sweep(tri, x, phi, closest_tri, origin, dx, -1, +1, -1);
-		sweep(tri, x, phi, closest_tri, origin, dx, +1, -1, -1);
-		sweep(tri, x, phi, closest_tri, origin, dx, -1, +1, +1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, +1, +1, +1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, -1, -1, -1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, +1, +1, -1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, -1, -1, +1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, +1, -1, +1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, -1, +1, -1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, +1, -1, -1);
+		sweep(triangle_data, phi, closest_tri, origin, dx, -1, +1, +1);
 	}
 }
 
@@ -288,8 +319,9 @@ void make_level_set3(const std::vector<Vec3ui> &tri,
 	Array3i intersection_count(ni, nj, nk,
 							   0); // intersection_count(i,j,k) is # of tri
 								   // intersections in (i-1,i]x{j}x{k}
+	std::vector<TriangleData> triangle_data;
 	init_distances_and_counts(tri, x, origin, dx, ni, nj, nk, exact_band, phi,
-							  closest_tri, intersection_count);
-	run_fast_sweeping_passes(tri, x, phi, closest_tri, origin, dx);
+							  closest_tri, intersection_count, triangle_data);
+	run_fast_sweeping_passes(triangle_data, phi, closest_tri, origin, dx);
 	apply_signs_from_intersection_counts(intersection_count, phi, ni, nj, nk);
 }
