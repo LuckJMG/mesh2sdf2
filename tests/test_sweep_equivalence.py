@@ -6,6 +6,10 @@ OMP_NUM_THREADS>1 exercises `sweep_parallel` while OMP_NUM_THREADS=1 forces
 the legacy sequential path. The wavefront level order is a topological order
 of the same dependency DAG as the sequential walk, so every configuration
 must produce exactly identical arrays.
+
+The triangle-init stage also parallelizes when more than one thread runs and
+the mesh holds at least 4096 triangles. Icosphere4 holds 5120, so it crosses
+that threshold while cube, icosphere3 and plane stay on the serial path.
 """
 
 import os
@@ -49,6 +53,7 @@ def mesh_inputs(tmp_path_factory) -> dict[str, Path]:
     meshes = {
         "cube": trimesh.creation.box(extents=(1.0, 1.0, 1.0)),
         "icosphere": trimesh.creation.icosphere(subdivisions=3),
+        "icosphere4": trimesh.creation.icosphere(subdivisions=4),
         "plane": trimesh.load(PLANE_OBJ, force="mesh"),
     }
     inputs = {}
@@ -60,7 +65,7 @@ def mesh_inputs(tmp_path_factory) -> dict[str, Path]:
     return inputs
 
 
-@pytest.mark.parametrize("name", ["cube", "icosphere", "plane"])
+@pytest.mark.parametrize("name", ["cube", "icosphere", "icosphere4", "plane"])
 def test_wavefront_bitwise_matches_serial(name, mesh_inputs, tmp_path):
     outputs = []
     for threads in THREAD_COUNTS:
