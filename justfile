@@ -21,16 +21,13 @@ build:
 test:
     {{py}} -m pytest tests/test_mesh2sdf.py -v
 
-# shared flags for the benchmark recipes below
-bench_flags := "--benchmark-enable --benchmark-min-rounds=3 --benchmark-columns=min,median,max,stddev,iterations --benchmark-sort=mean --benchmark-autosave"
-
 # run benchmark suite (skip by default in `test`; opt-in here)
-bench:
-    {{py}} -m pytest tests/bench {{bench_flags}} -v
+bench name="":
+    {{py}} -m pytest tests/bench --benchmark-enable --benchmark-min-rounds=3 --benchmark-columns=min,median,max,stddev,iterations --benchmark-sort=mean --benchmark-save={{name}} -v
 
 # run benchmark suite and diff against the most recent saved run (fails on >10% median regression)
-bench-compare:
-    {{py}} -m pytest tests/bench {{bench_flags}} --benchmark-compare=LAST --benchmark-compare-fail=median:10% -v
+bench-compare old="" new="":
+    pytest-benchmark compare {{old}} {{new}} --group-by=name --columns=min,mean,median,stddev
 
 # run linting: ruff + clang-format + clang-tidy
 check:
