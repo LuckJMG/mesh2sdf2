@@ -295,6 +295,7 @@ run_fast_sweeping_passes(const std::vector<TriangleData> &triangle_data,
 static void
 apply_signs_from_intersection_counts(const Array3i &intersection_count,
 									 Array3f &phi, int ni, int nj, int nk) {
+#pragma omp parallel for collapse(2)
 	for (int k = 0; k < nk; ++k) {
 		for (int j = 0; j < nj; ++j) {
 			int total_count = 0;
