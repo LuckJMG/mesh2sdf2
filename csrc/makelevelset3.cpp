@@ -1,6 +1,8 @@
 #include "makelevelset3.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -52,22 +54,22 @@ static float point_triangle_distance(const Vec3f &x0,
 	}
 	else {			   // we have to clamp to one of the edges
 		if (w23 > 0) { // this rules out edge 2-3 for us
-			return min(point_segment_distance(x0, triangle.x1, triangle.x2,
-											  triangle.edge12),
-					   point_segment_distance(x0, triangle.x1, triangle.x3,
-											  triangle.edge13));
+			return std::min(point_segment_distance(x0, triangle.x1, triangle.x2,
+												   triangle.edge12),
+							point_segment_distance(x0, triangle.x1, triangle.x3,
+												   triangle.edge13));
 		}
 		else if (w31 > 0) { // this rules out edge 1-3
-			return min(point_segment_distance(x0, triangle.x1, triangle.x2,
-											  triangle.edge12),
-					   point_segment_distance(x0, triangle.x2, triangle.x3,
-											  triangle.edge23));
+			return std::min(point_segment_distance(x0, triangle.x1, triangle.x2,
+												   triangle.edge12),
+							point_segment_distance(x0, triangle.x2, triangle.x3,
+												   triangle.edge23));
 		}
 		else { // w12 must be >0, ruling out edge 1-2
-			return min(point_segment_distance(x0, triangle.x1, triangle.x3,
-											  triangle.edge13),
-					   point_segment_distance(x0, triangle.x2, triangle.x3,
-											  triangle.edge23));
+			return std::min(point_segment_distance(x0, triangle.x1, triangle.x3,
+												   triangle.edge13),
+							point_segment_distance(x0, triangle.x2, triangle.x3,
+												   triangle.edge23));
 		}
 	}
 }
@@ -88,8 +90,8 @@ static void check_neighbour(const std::vector<TriangleData> &triangle_data,
 static void update_cell(const std::vector<TriangleData> &triangle_data,
 						Array3f &phi, Array3i &closest_tri, const Vec3f &origin,
 						float dx, int i, int j, int k, int di, int dj, int dk) {
-	Vec3f gx((float)i * dx + origin[0], (float)j * dx + origin[1],
-			 (float)k * dx + origin[2]);
+	Vec3f gx((float)i * dx + origin.x, (float)j * dx + origin.y,
+			 (float)k * dx + origin.z);
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j, k);
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj, k);
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
@@ -174,8 +176,8 @@ static void sweep_parallel(const std::vector<TriangleData> &triangle_data,
 			int t_lo = di > 0 ? i_lo : -i_hi;
 			int t_hi = di > 0 ? i_hi : -i_lo;
 			int a = m - t_hi, b = m - t_lo;
-			int klo = max(k_lo, dk > 0 ? a : -b);
-			int khi = min(k_hi, dk > 0 ? b : -a);
+			int klo = std::max(k_lo, dk > 0 ? a : -b);
+			int khi = std::min(k_hi, dk > 0 ? b : -a);
 			for (int k = klo; k <= khi; ++k) {
 				int i = di * (m - dk * k);
 				update_cell(triangle_data, phi, closest_tri, origin, dx, i, j,
@@ -248,8 +250,7 @@ struct TriSetup {
 
 static TriSetup setup_triangle(const Vec3ui &t, const std::vector<Vec3f> &x,
 							   const Vec3f &origin, float dx) {
-	unsigned int p, q, r;
-	assign(t, p, q, r);
+	unsigned int p = t.x, q = t.y, r = t.z;
 	TriSetup s;
 	TriangleData &triangle = s.triangle;
 	triangle.x1 = x[p];
@@ -262,22 +263,22 @@ static TriSetup setup_triangle(const Vec3ui &t, const std::vector<Vec3f> &x,
 	triangle.d = dot(triangle.x13, triangle.x23);
 	triangle.invdet =
 		1.f /
-		max(triangle.m13 * triangle.m23 - triangle.d * triangle.d, 1e-30f);
+		std::max(triangle.m13 * triangle.m23 - triangle.d * triangle.d, 1e-30f);
 	triangle.edge12 = {triangle.x2 - triangle.x1,
 					   mag2(triangle.x2 - triangle.x1)};
 	triangle.edge13 = {triangle.x3 - triangle.x1,
 					   mag2(triangle.x3 - triangle.x1)};
 	triangle.edge23 = {triangle.x3 - triangle.x2,
 					   mag2(triangle.x3 - triangle.x2)};
-	s.fip = ((double)x[p][0] - origin[0]) / dx;
-	s.fjp = ((double)x[p][1] - origin[1]) / dx;
-	s.fkp = ((double)x[p][2] - origin[2]) / dx;
-	s.fiq = ((double)x[q][0] - origin[0]) / dx;
-	s.fjq = ((double)x[q][1] - origin[1]) / dx;
-	s.fkq = ((double)x[q][2] - origin[2]) / dx;
-	s.fir = ((double)x[r][0] - origin[0]) / dx;
-	s.fjr = ((double)x[r][1] - origin[1]) / dx;
-	s.fkr = ((double)x[r][2] - origin[2]) / dx;
+	s.fip = ((double)x[p].x - origin.x) / dx;
+	s.fjp = ((double)x[p].y - origin.y) / dx;
+	s.fkp = ((double)x[p].z - origin.z) / dx;
+	s.fiq = ((double)x[q].x - origin.x) / dx;
+	s.fjq = ((double)x[q].y - origin.y) / dx;
+	s.fkq = ((double)x[q].z - origin.z) / dx;
+	s.fir = ((double)x[r].x - origin.x) / dx;
+	s.fjr = ((double)x[r].y - origin.y) / dx;
+	s.fkr = ((double)x[r].z - origin.z) / dx;
 	return s;
 }
 
@@ -335,30 +336,36 @@ static void init_distances_and_counts_parallel(
 			TriSetup setup = setup_triangle(tri[t], x, origin, dx);
 			triangle_data[t] = setup.triangle;
 			// do distances nearby
-			int i0 = clamp(int(min(setup.fip, setup.fiq, setup.fir)) -
-							   exact_band,
-						   0, ni - 1),
-				i1 = clamp(int(max(setup.fip, setup.fiq, setup.fir)) +
-							   exact_band + 1,
-						   0, ni - 1);
-			int j0 = clamp(int(min(setup.fjp, setup.fjq, setup.fjr)) -
-							   exact_band,
-						   0, nj - 1),
-				j1 = clamp(int(max(setup.fjp, setup.fjq, setup.fjr)) +
-							   exact_band + 1,
-						   0, nj - 1);
-			int k0 = clamp(int(min(setup.fkp, setup.fkq, setup.fkr)) -
-							   exact_band,
-						   0, nk - 1),
-				k1 = clamp(int(max(setup.fkp, setup.fkq, setup.fkr)) +
-							   exact_band + 1,
-						   0, nk - 1);
+			int i0 = std::clamp(
+					int(std::min({setup.fip, setup.fiq, setup.fir})) -
+						exact_band,
+					0, ni - 1),
+				i1 = std::clamp(
+					int(std::max({setup.fip, setup.fiq, setup.fir})) +
+						exact_band + 1,
+					0, ni - 1);
+			int j0 = std::clamp(
+					int(std::min({setup.fjp, setup.fjq, setup.fjr})) -
+						exact_band,
+					0, nj - 1),
+				j1 = std::clamp(
+					int(std::max({setup.fjp, setup.fjq, setup.fjr})) +
+						exact_band + 1,
+					0, nj - 1);
+			int k0 = std::clamp(
+					int(std::min({setup.fkp, setup.fkq, setup.fkr})) -
+						exact_band,
+					0, nk - 1),
+				k1 = std::clamp(
+					int(std::max({setup.fkp, setup.fkq, setup.fkr})) +
+						exact_band + 1,
+					0, nk - 1);
 			for (int k = k0; k <= k1; ++k) {
 				for (int j = j0; j <= j1; ++j) {
 					for (int i = i0; i <= i1; ++i) {
-						Vec3f gx((float)i * dx + origin[0],
-								 (float)j * dx + origin[1],
-								 (float)k * dx + origin[2]);
+						Vec3f gx((float)i * dx + origin.x,
+								 (float)j * dx + origin.y,
+								 (float)k * dx + origin.z);
 						float d = point_triangle_distance(gx, setup.triangle);
 						packed_min_distance(packed[i + ni * (j + nj * k)], d,
 											(unsigned int)t);
@@ -366,14 +373,18 @@ static void init_distances_and_counts_parallel(
 				}
 			}
 			// and do intersection counts
-			j0 = clamp((int)std::ceil(min(setup.fjp, setup.fjq, setup.fjr)), 0,
-					   nj - 1);
-			j1 = clamp((int)std::floor(max(setup.fjp, setup.fjq, setup.fjr)), 0,
-					   nj - 1);
-			k0 = clamp((int)std::ceil(min(setup.fkp, setup.fkq, setup.fkr)), 0,
-					   nk - 1);
-			k1 = clamp((int)std::floor(max(setup.fkp, setup.fkq, setup.fkr)), 0,
-					   nk - 1);
+			j0 = std::clamp(
+				(int)std::ceil(std::min({setup.fjp, setup.fjq, setup.fjr})), 0,
+				nj - 1);
+			j1 = std::clamp(
+				(int)std::floor(std::max({setup.fjp, setup.fjq, setup.fjr})), 0,
+				nj - 1);
+			k0 = std::clamp(
+				(int)std::ceil(std::min({setup.fkp, setup.fkq, setup.fkr})), 0,
+				nk - 1);
+			k1 = std::clamp(
+				(int)std::floor(std::max({setup.fkp, setup.fkq, setup.fkr})), 0,
+				nk - 1);
 			for (int k = k0; k <= k1; ++k) {
 				for (int j = j0; j <= j1; ++j) {
 					double a, b, c;
@@ -435,27 +446,29 @@ static void init_distances_and_counts(
 		TriSetup setup = setup_triangle(tri[t], x, origin, dx);
 		triangle_data[t] = setup.triangle;
 		// do distances nearby
-		int i0 = clamp(int(min(setup.fip, setup.fiq, setup.fir)) - exact_band,
-					   0, ni - 1),
-			i1 = clamp(int(max(setup.fip, setup.fiq, setup.fir)) + exact_band +
-						   1,
-					   0, ni - 1);
-		int j0 = clamp(int(min(setup.fjp, setup.fjq, setup.fjr)) - exact_band,
-					   0, nj - 1),
-			j1 = clamp(int(max(setup.fjp, setup.fjq, setup.fjr)) + exact_band +
-						   1,
-					   0, nj - 1);
-		int k0 = clamp(int(min(setup.fkp, setup.fkq, setup.fkr)) - exact_band,
-					   0, nk - 1),
-			k1 = clamp(int(max(setup.fkp, setup.fkq, setup.fkr)) + exact_band +
-						   1,
-					   0, nk - 1);
+		int i0 = std::clamp(int(std::min({setup.fip, setup.fiq, setup.fir})) -
+								exact_band,
+							0, ni - 1),
+			i1 = std::clamp(int(std::max({setup.fip, setup.fiq, setup.fir})) +
+								exact_band + 1,
+							0, ni - 1);
+		int j0 = std::clamp(int(std::min({setup.fjp, setup.fjq, setup.fjr})) -
+								exact_band,
+							0, nj - 1),
+			j1 = std::clamp(int(std::max({setup.fjp, setup.fjq, setup.fjr})) +
+								exact_band + 1,
+							0, nj - 1);
+		int k0 = std::clamp(int(std::min({setup.fkp, setup.fkq, setup.fkr})) -
+								exact_band,
+							0, nk - 1),
+			k1 = std::clamp(int(std::max({setup.fkp, setup.fkq, setup.fkr})) +
+								exact_band + 1,
+							0, nk - 1);
 		for (int k = k0; k <= k1; ++k) {
 			for (int j = j0; j <= j1; ++j) {
 				for (int i = i0; i <= i1; ++i) {
-					Vec3f gx((float)i * dx + origin[0],
-							 (float)j * dx + origin[1],
-							 (float)k * dx + origin[2]);
+					Vec3f gx((float)i * dx + origin.x, (float)j * dx + origin.y,
+							 (float)k * dx + origin.z);
 					float d = point_triangle_distance(gx, setup.triangle);
 					if (d < phi(i, j, k)) {
 						phi(i, j, k) = d;
@@ -465,14 +478,18 @@ static void init_distances_and_counts(
 			}
 		}
 		// and do intersection counts
-		j0 = clamp((int)std::ceil(min(setup.fjp, setup.fjq, setup.fjr)), 0,
-				   nj - 1);
-		j1 = clamp((int)std::floor(max(setup.fjp, setup.fjq, setup.fjr)), 0,
-				   nj - 1);
-		k0 = clamp((int)std::ceil(min(setup.fkp, setup.fkq, setup.fkr)), 0,
-				   nk - 1);
-		k1 = clamp((int)std::floor(max(setup.fkp, setup.fkq, setup.fkr)), 0,
-				   nk - 1);
+		j0 = std::clamp(
+			(int)std::ceil(std::min({setup.fjp, setup.fjq, setup.fjr})), 0,
+			nj - 1);
+		j1 = std::clamp(
+			(int)std::floor(std::max({setup.fjp, setup.fjq, setup.fjr})), 0,
+			nj - 1);
+		k0 = std::clamp(
+			(int)std::ceil(std::min({setup.fkp, setup.fkq, setup.fkr})), 0,
+			nk - 1);
+		k1 = std::clamp(
+			(int)std::floor(std::max({setup.fkp, setup.fkq, setup.fkr})), 0,
+			nk - 1);
 		for (int k = k0; k <= k1; ++k) {
 			for (int j = j0; j <= j1; ++j) {
 				double a, b, c;
