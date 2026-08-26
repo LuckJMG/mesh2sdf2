@@ -43,7 +43,7 @@ py::array_t<float> compute(const py::array_t<float> &vertices,
 
 	// output
 	py::array_t<float> sdf({size, size, size});
-	std::memcpy(sdf.mutable_data(), grid.a.data,
+	std::memcpy(sdf.mutable_data(), grid.a.data(),
 				(size_t)size * size * size * sizeof(float));
 	return sdf;
 }
