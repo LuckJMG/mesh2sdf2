@@ -34,7 +34,8 @@ compilers are needed to build the code. Supported compilers are listed
 - Alternatively, install from the source code via the following commands.
     ``` shell
     git clone https://github.com/LuckJMG/mesh2sdf2.git
-    pip install ./mesh2sdf2
+    cd mesh2sdf2
+    pip install .
     ```
 
 - Alternatively, install from the source code via the following commands.

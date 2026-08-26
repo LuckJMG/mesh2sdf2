@@ -20,11 +20,12 @@ Algorithm:
 3. Re-run signed SDF on fixed mesh. Return signed result.
 
 C++ fast-sweep from SDFGen by Christopher Batty. Box hard-coded `[-1, 1]` in
-`csrc/pybind.cpp:29`. `dx = 2/(size - 1)`, so `size` samples span `[-1, 1]`
+`csrc/pybind.cpp:30`. `dx = 2/(size - 1)`, so `size` samples span `[-1, 1]`
 inclusive; `size < 2` raises `ValueError`. The algorithm matches upstream SDFGen,
 but the code diverged from upstream and no longer diffs cleanly against it:
-`csrc/makelevelset3.cpp` splits into per-phase static helpers, and vendored
-headers (`array1.h`, `vec.h`) keep only the surface the build uses.
+`csrc/makelevelset3.cpp` splits into per-phase static helpers, `csrc/array3.h`
+is simplified to `std::vector` backing, `csrc/vec.h` keeps explicit `Vec3f`/
+`Vec3ui` structs, and `csrc/util.h` was removed in favour of `<algorithm>`.
 
 ## Layout
 
@@ -32,18 +33,24 @@ headers (`array1.h`, `vec.h`) keep only the surface the build uses.
   preserved for drop-in use.
 - `mesh2sdf/compute.py` — wrap `mesh2sdf.core.compute`. Run `fix=True` path.
 - `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`.
+  Releases GIL around `make_level_set3`, copies result with `memcpy`.
 - `csrc/makelevelset3.cpp` — fast-sweep algorithm impl. The sweep has two
-  paths: legacy sequential, and a wavefront-parallel variant (cells grouped
-  by `di*i+dj*j+dk*k`, one `omp parallel for` per level). Dispatch picks the
-  parallel path only with OpenMP, >1 threads, and grids ≥ 2^18 cells.
+  parallel paths:
+  - Init: `init_distances_and_counts_parallel` with packed 64-bit CAS
+    `((bits<<32)|t)` for dense meshes (`≥4096` tris, `1<<12`). Serial init
+    otherwise. `omp atomic` on `intersection_count`.
+  - Sweep: wavefront-parallel variant (cells grouped by `di*i+dj*j+dk*k`,
+    one `omp parallel for` per level) for grids `≥2^18` cells. Dispatch picks
+    the parallel path only with OpenMP, >1 threads, and the size threshold.
   Level order is a topological order of the same dependency DAG as the
   sequential walk: results are bit-identical at any thread count.
-  `OMP_NUM_THREADS=1` forces the legacy path. Guarded by
-  `tests/test_sweep_equivalence.py`.
+  `OMP_NUM_THREADS=1` forces the legacy paths. Guarded by
+  `tests/test_sweep_equivalence.py`. Sign pass is `omp parallel for collapse(2)`.
 - `csrc/makelevelset3.h` — `make_level_set3` decl.
-- `csrc/array1.h`, `array3.h` — 1/3D array types.
-- `csrc/vec.h` — `Vec3f`, `Vec3ui` types.
-- `csrc/util.h` — misc helpers.
+- `csrc/array3.h` — `Array3<T>` over `std::vector<T>` (67 lines,
+  `index(i,j,k)=i+ni*(j+nj*k)`).
+- `csrc/vec.h` — `Vec3f{float x,y,z}`, `Vec3ui{uint x,y,z}` with `dot`,
+  `mag2`, `dist` (63 lines, `operator[]` via `(&x)[i]`).
 - `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
   + `cmdclass={'build_ext': build_ext}`. Adds OpenMP flags (`-fopenmp`,
   `/openmp` on MSVC). Derives `__version__` from
@@ -52,12 +59,23 @@ headers (`array1.h`, `vec.h`) keep only the surface the build uses.
   declares name `mesh2sdf2`, `version` (single source of truth for the
   whole project), deps, classifiers, urls. `[build-system]`
   requires `setuptools>=68, pybind11>=2.13`. `[dependency-groups].dev`
-  has `matplotlib` (visualization only).
+  has `matplotlib`, `pybind11>=2.13`, `pytest`, `pytest-benchmark`,
+  `ruff>=0.16.4`.
 - `MANIFEST.in` — graft `csrc/`. Needed for sdist.
-- `LICENSE` — MIT verbatim. Renamed from `LISCENCE` typo in v2.
+- `LICENSE` — MIT verbatim.
 - `example/demo.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`.
 - `example/visualize_sdf.py` — slice `.npy`, render PNG + level-set OBJ.
-- `example/data/plane.obj` — default test mesh.
+- `example/data/plane.obj` — default test mesh (`result.png`/`result.svg`
+  are rendered outputs, not inputs).
+- `tests/test_mesh2sdf.py` — unit tests (output contract, resolution,
+  correctness, grid alignment `[-1,1]` inclusive, fix path, plane e2e).
+- `tests/test_sweep_equivalence.py` — bit-identical sweep/init at 1/2/5
+  threads (`SIZE=96`, covers both parallel paths).
+- `tests/bench/` — pytest-benchmark suites (`test_core.py`, `test_e2e.py`,
+  `conftest.py` session fixtures).
+- `justfile` — dev tasks (`run`, `build`, `test`, `bench`, `bench-compare`,
+  `check`, `clean`, `init`).
+- `.clang-format`, `.clang-tidy` — C++ lint config.
 
 ## Build
 
@@ -66,7 +84,7 @@ https://github.com/pybind/pybind11#supported-compilers
 
 ```sh
 pip install mesh2sdf2            # PyPI (fork name)
-pip install -e ./mesh2sdf2       # source, editable
+pip install -e .                 # source, editable (from repo root)
 ```
 
 Build deps from `pyproject.toml [build-system].requires`:
@@ -87,6 +105,7 @@ Local dev setup, if `.venv` is missing or built against the wrong Python:
 uv python install 3.14
 uv venv --python "$(uv python find 3.14 | grep -v '/usr/bin')" .venv
 uv sync --no-dev
+# or: just init  (uv sync)  /  just build  (uv sync + force-reinstall)
 ```
 
 ## Public API
@@ -114,6 +133,7 @@ python example/demo.py                    # use example/data/plane.obj
 python example/demo.py path/to/foo.obj    # custom; write foo.fixed.obj + foo.npy
 python example/visualize_sdf.py           # use example/data/plane.npy
 python example/visualize_sdf.py foo.npy   # custom .npy
+# or: just run / just run path/to/foo.obj
 ```
 
 `example/demo.py` flow:
@@ -131,23 +151,42 @@ python example/visualize_sdf.py foo.npy   # custom .npy
 
 ## Verification
 
-No test suite. No CI. No linter, formatter, typecheck configured.
+Tests: `pytest`. Unit `tests/test_mesh2sdf.py` (output contract, resolution,
+correctness, grid alignment `[-1,1]` inclusive, fix path, plane e2e).
+Equivalence `tests/test_sweep_equivalence.py` (bit-identical at 1/2/5 threads,
+`SIZE=96`, covers both init and sweep parallel paths). Fixtures in
+`tests/conftest.py` and `tests/bench/conftest.py` (session-scoped where
+possible). Bench `tests/bench/` disabled by default via `addopts`.
+
+```sh
+just test        # pytest tests/test_mesh2sdf.py -v
+.venv/bin/python -m pytest tests/test_sweep_equivalence.py -v
+.venv/bin/python -m pytest tests/ -v
+```
 
 ## C++ lint
 
 `csrc/**` is formatted with `clang-format` (LLVM base, 4-tab indent, K&R
 braces, `InsertBraces: true`, `BeforeElse`/`BeforeCatch` on new line) and
 analyzed with `clang-tidy` (conservative checks: `clang-analyzer-*`,
-`bugprone-*`, `performance-*`). Config files are `.clang-format` and
-`.clang-tidy` at the repo root. Run everything with `just check`. The
-justfile reads the pybind11 and Python include paths from the venv and
-passes them directly to clang-tidy; no `compile_commands.json` is
-generated.
+`bugprone-*` except `bugprone-easily-swappable-parameters`,
+`performance-*`). Config files are `.clang-format` and
+`.clang-tidy` at the repo root. Run everything with `just check`:
+
+```sh
+just check       # ruff check + clang-format --dry-run --Werror + clang-tidy
+```
+
+`just check` reads the pybind11 and Python include paths from the venv and
+passes them directly to clang-tidy (`-Icsrc -I$pybind11_inc -I$python_inc
+-DVERSION_INFO=<version from pyproject.toml> -std=c++17`); no
+`compile_commands.json` is generated.
 
 Smoke test (Python 3.14, single `.venv`):
 
 ```sh
 .venv/bin/python example/demo.py
+just run
 ```
 
 Pass if `<output>.fixed.obj` and `<output>.npy` produced without traceback.
@@ -175,6 +214,8 @@ Run the full benchmark suite:
 
 ```sh
 just bench
+just bench my_run          # --benchmark-save=my_run
+just bench-compare         # diff against last saved runs, fails on >10% median regression
 ```
 
 This invokes `pytest tests/bench --benchmark-enable ...` and prints a
@@ -207,12 +248,13 @@ target.
   derives `__version__` from it at build time, and the justfile parses it
   for clang-tidy's `-DVERSION_INFO`. Never duplicate the literal elsewhere.
 - `MANIFEST.in` grafts `csrc/`. Without it, sdist missing C++ sources,
-  install fails. setuptools auto-includes `LICENSE` at root after the v2 rename.
+  install fails.
 - `compute.py:43` re-normalizes fixed mesh to `[-1, 1]` after marching
   cubes. `example/demo.py:32` un-scales for output. Keep both in sync if
   you touch box convention.
 - `csrc/pybind.cpp:14` declares `vertices` as `float`, `faces` as
   `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.
-- `.gitignore` includes `build/`, `*.so`, `__pycache__/`, `.venv/`,
-  standard Python ignores. Smoke-test outputs
-  (`example/data/*.fixed.obj`, `*.npy`) are untracked — do not commit.
+- `.gitignore` is minimal (12 lines): `*.so`, `build/`, `dist/`,
+  `*.egg-info/`, `__pycache__/`, `*.py[cod]`, `.venv/`, `.benchmarks/`,
+  `.pytest_cache/`, `.ruff_cache/`, `compile_commands.json`, `.DS_Store`.
+  Generated `*.fixed.obj`/`*.npy` are untracked by default — do not commit.
