@@ -1,4 +1,4 @@
-# Mesh2SDF
+# Mesh2SDF2
 
 [![Downloads](https://static.pepy.tech/badge/mesh2sdf2)](https://pepy.tech/project/mesh2sdf2)
 [![Downloads](https://static.pepy.tech/badge/mesh2sdf2/month)](https://pepy.tech/project/mesh2sdf2/month)
@@ -7,17 +7,17 @@
 
 > **This is a community-maintained fork** of
 > [mesh2sdf](https://github.com/wang-ps/mesh2sdf) by Peng-Shuai Wang. It adds
-> Python 3.10–3.14 support and modernizes the build (setuptools ≥68,
-> pybind11 ≥2.13). Original project, paper, and algorithm: see the
+> Python 3.10–3.14 support, modernizes the build (setuptools ≥68,
+> pybind11 ≥2.13), and improve the compute speed. Original project, paper, and algorithm: see the
 > [upstream repo](https://github.com/wang-ps/mesh2sdf). License: MIT.
 
 Converts an input mesh to a signed distance field. It can work with arbitrary
 meshes, even **non-watertight** meshes from ShapeNet.
 
-`mesh2sdf` is used in our paper
+`mesh2sdf` is used in their paper
 [Dual Octree Graph Networks (SIGGRAPH 2022)](https://wang-ps.github.io/dualocnn)
 to generate the training data.
-Please cite our paper if you find the code useful for your research.
+Please cite their paper if you find the code useful for your research.
 
 
 ## Installation
