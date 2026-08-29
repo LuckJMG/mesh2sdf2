@@ -1,8 +1,8 @@
 #ifndef VEC_H
 #define VEC_H
 
-#include <cassert>
-#include <cmath>
+#include <assert.h>
+#include <math.h>
 
 struct Vec3f {
 	float x, y, z;
@@ -56,8 +56,6 @@ inline float dist2(const Vec3f &a, const Vec3f &b) {
 	return dx * dx + dy * dy + dz * dz;
 }
 
-inline float dist(const Vec3f &a, const Vec3f &b) {
-	return std::sqrt(dist2(a, b));
-}
+inline float dist(const Vec3f &a, const Vec3f &b) { return sqrt(dist2(a, b)); }
 
 #endif

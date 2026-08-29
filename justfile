@@ -45,7 +45,7 @@ check:
         -I"$pybind11_inc" \
         -I"$python_inc" \
         -DVERSION_INFO="{{version}}" \
-        -std=c++17
+        -std=c++20
 
 # remove build artifacts
 clean:

@@ -11,6 +11,8 @@
 > pybind11 ≥2.13), and improve the compute speed. Original project, paper, and algorithm: see the
 > [upstream repo](https://github.com/wang-ps/mesh2sdf). License: MIT.
 
+C++ core is Orthodox C++ on C++20: C headers (`<assert.h>`, `<math.h>`, `<string.h>`), manual `malloc`/`free`, no allocating STL. `pybind11` boundary (`csrc/pybind.cpp`) stays Modern C++ as an unorthodox island; `Vec3` math keeps `operator+/-/*` by exception.
+
 Converts an input mesh to a signed distance field. It can work with arbitrary
 meshes, even **non-watertight** meshes from ShapeNet.
 

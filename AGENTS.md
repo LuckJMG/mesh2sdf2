@@ -19,13 +19,16 @@ Algorithm:
    surface, keep largest bbox component.
 3. Re-run signed SDF on fixed mesh. Return signed result.
 
-C++ fast-sweep from SDFGen by Christopher Batty. Box hard-coded `[-1, 1]` in
+C++ fast-sweep from SDFGen by Christopher Batty, now Orthodox C++ on C++20.
+C headers (`<assert.h>`, `<math.h>`, `<string.h>`, `<stdint.h>`, `<stdlib.h>`),
+manual `malloc`/`free`, no allocating STL. `pybind11` island stays Modern C++.
+`Vec3` keeps `operator+/-/*` by math exception. Box hard-coded `[-1, 1]` in
 `csrc/pybind.cpp:30`. `dx = 2/(size - 1)`, so `size` samples span `[-1, 1]`
 inclusive; `size < 2` raises `ValueError`. The algorithm matches upstream SDFGen,
-but the code diverged from upstream and no longer diffs cleanly against it:
-`csrc/makelevelset3.cpp` splits into per-phase static helpers, `csrc/array3.h`
-is simplified to `std::vector` backing, `csrc/vec.h` keeps explicit `Vec3f`/
-`Vec3ui` structs, and `csrc/util.h` was removed in favour of `<algorithm>`.
+but the code diverged: `csrc/makelevelset3.cpp` splits into per-phase static
+helpers, `csrc/array3.h` is `malloc`/`free`-backed `Array3<T>` (`T* a`, 129
+lines, `NOLINT` on `operator()`), `csrc/vec.h` keeps `Vec3f`/`Vec3ui` with C
+headers but retained overloads (63 lines), and `csrc/util.h` was removed.
 
 ## Layout
 
@@ -46,15 +49,18 @@ is simplified to `std::vector` backing, `csrc/vec.h` keeps explicit `Vec3f`/
   sequential walk: results are bit-identical at any thread count.
   `OMP_NUM_THREADS=1` forces the legacy paths. Guarded by
   `tests/test_sweep_equivalence.py`. Sign pass is `omp parallel for collapse(2)`.
-- `csrc/makelevelset3.h` — `make_level_set3` decl.
-- `csrc/array3.h` — `Array3<T>` over `std::vector<T>` (67 lines,
-  `index(i,j,k)=i+ni*(j+nj*k)`).
+- `csrc/makelevelset3.h` — `make_level_set3` decl. Two overloads:
+  `std::vector` bridge for `pybind.cpp` + orthodox raw-pointer core
+  (`Vec3ui* tri, int ntri, Vec3f* x`).
+- `csrc/array3.h` — `Array3<T>` over `malloc`/`free` (129 lines, `T* a`,
+  `index(i,j,k)=i+ni*(j+nj*k)`, `NOLINT` on `operator()` for analyzer).
 - `csrc/vec.h` — `Vec3f{float x,y,z}`, `Vec3ui{uint x,y,z}` with `dot`,
-  `mag2`, `dist` (63 lines, `operator[]` via `(&x)[i]`).
+  `mag2`, `dist` (63 lines, `operator[]` via `(&x)[i]`, C headers
+  `<assert.h>/<math.h>` with operator overloads kept).
 - `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
   + `cmdclass={'build_ext': build_ext}`. Adds OpenMP flags (`-fopenmp`,
-  `/openmp` on MSVC). Derives `__version__` from
-  `pyproject.toml` and passes it to the C++ `VERSION_INFO` macro.
+  `/openmp` on MSVC) and `-std=c++20` (`/std:c++20` on MSVC). Derives
+  `__version__` from `pyproject.toml` and passes it to `VERSION_INFO`.
 - `pyproject.toml` — PEP 621 metadata + build-system. `[project]`
   declares name `mesh2sdf2`, `version` (single source of truth for the
   whole project), deps, classifiers, urls. `[build-system]`
@@ -179,8 +185,10 @@ just check       # ruff check + clang-format --dry-run --Werror + clang-tidy
 
 `just check` reads the pybind11 and Python include paths from the venv and
 passes them directly to clang-tidy (`-Icsrc -I$pybind11_inc -I$python_inc
--DVERSION_INFO=<version from pyproject.toml> -std=c++17`); no
-`compile_commands.json` is generated.
+-DVERSION_INFO=<version from pyproject.toml> -std=c++20`); no
+`compile_commands.json` is generated. Orthodox core is `NOLINT`-suppressed
+for `Array3::operator()` false positive (see `csrc/array3.h:69`); otherwise
+`just check` is green.
 
 Smoke test (Python 3.14, single `.venv`):
 
@@ -254,6 +262,10 @@ target.
   you touch box convention.
 - `csrc/pybind.cpp:14` declares `vertices` as `float`, `faces` as
   `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.
+- Orthodox C++: `csrc/pybind.cpp` is the unorthodox island (Modern C++,
+  `pybind11`, exceptions). Do not add `-fno-exceptions` globally — it would
+  break the pybind boundary. Core `csrc/makelevelset3.cpp` / `array3.h` /
+  `vec.h` are orthodox (`-std=c++20`, C headers, `malloc`/`free`).
 - `.gitignore` is minimal (12 lines): `*.so`, `build/`, `dist/`,
   `*.egg-info/`, `__pycache__/`, `*.py[cod]`, `.venv/`, `.benchmarks/`,
   `.pytest_cache/`, `.ruff_cache/`, `compile_commands.json`, `.DS_Store`.

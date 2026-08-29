@@ -10,7 +10,9 @@ __version__ = re.search(
     r'^version = "(.*?)"', Path("pyproject.toml").read_text(encoding="utf-8"), re.MULTILINE
 ).group(1)
 
-extra_compile_args = ["/openmp"] if sys.platform == "win32" else ["-fopenmp"]
+extra_compile_args = (
+	["/openmp", "/std:c++20"] if sys.platform == "win32" else ["-fopenmp", "-std=c++20"]
+)
 extra_link_args = [] if sys.platform == "win32" else ["-fopenmp"]
 
 ext_modules = [
