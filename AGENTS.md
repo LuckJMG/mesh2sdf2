@@ -22,42 +22,51 @@ Algorithm:
 C++ fast-sweep from SDFGen by Christopher Batty, now Orthodox C++ on C++20.
 C headers (`<assert.h>`, `<math.h>`, `<string.h>`, `<stdint.h>`, `<stdlib.h>`),
 manual `malloc`/`free`, no allocating STL. `pybind11` island stays Modern C++.
-`Vec3` keeps `operator+/-/*` by math exception. Box hard-coded `[-1, 1]` in
-`csrc/pybind.cpp:30`. `dx = 2/(size - 1)`, so `size` samples span `[-1, 1]`
+`Vec3` keeps `operator+/-/*` by math exception. Body-assign ctors (no `:` init
+list) for pure-C style. `Array3<T>` templates allowed (`T* storage`, 134
+lines, `NOLINT` on `operator()`). Box hard-coded `[-1, 1]` in
+`csrc/pybind.cpp:27`. `dx = 2/(size - 1)`, so `size` samples span `[-1, 1]`
 inclusive; `size < 2` raises `ValueError`. The algorithm matches upstream SDFGen,
-but the code diverged: `csrc/makelevelset3.cpp` splits into per-phase static
-helpers, `csrc/array3.h` is `malloc`/`free`-backed `Array3<T>` (`T* a`, 129
-lines, `NOLINT` on `operator()`), `csrc/vec.h` keeps `Vec3f`/`Vec3ui` with C
-headers but retained overloads (63 lines), and `csrc/util.h` was removed.
+but the code diverged: `csrc/geometry.h` holds pure geometry
+(`SegmentData`/`TriangleData`/`TriSetup`/`setup_triangle` + `point_*` + `clamp`/
+`min3`/`orientation`, 214 lines, header-only), `csrc/parallel.h/.cpp` holds
+OpenMP paths (`sweep_parallel` + `init_parallel` with packed CAS, 24/224
+lines), `csrc/makelevelset3.cpp` is orchestrator only (248 lines, pure LoB —
+`check_neighbour`/`update_cell` duplicated adjacent to `sweep` both TUs), and
+`csrc/util.h` was removed.
 
 ## Layout
 
 - `mesh2sdf/__init__.py` — re-export `compute`. Import name `mesh2sdf`
   preserved for drop-in use.
-- `mesh2sdf/compute.py` — wrap `mesh2sdf.core.compute`. Run `fix=True` path.
-- `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`.
-  Releases GIL around `make_level_set3`, copies result with `memcpy`.
-- `csrc/makelevelset3.cpp` — fast-sweep algorithm impl. The sweep has two
-  parallel paths:
-  - Init: `init_distances_and_counts_parallel` with packed 64-bit CAS
-    `((bits<<32)|t)` for dense meshes (`≥4096` tris, `1<<12`). Serial init
-    otherwise. `omp atomic` on `intersection_count`.
-  - Sweep: wavefront-parallel variant (cells grouped by `di*i+dj*j+dk*k`,
-    one `omp parallel for` per level) for grids `≥2^18` cells. Dispatch picks
-    the parallel path only with OpenMP, >1 threads, and the size threshold.
-  Level order is a topological order of the same dependency DAG as the
-  sequential walk: results are bit-identical at any thread count.
-  `OMP_NUM_THREADS=1` forces the legacy paths. Guarded by
-  `tests/test_sweep_equivalence.py`. Sign pass is `omp parallel for collapse(2)`.
+- `mesh2sdf/compute.py` — wrap `mesh2sdf.core.compute`. Run `fix=True` path
+  (obvious comments removed).
+- `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`
+  (65 lines, obvious `// input` comments removed). Releases GIL around
+  `make_level_set3`, copies `grid.storage` with `memcpy`.
+- `csrc/geometry.h` — header-only pure geometry (214 lines): `SegmentData`/
+  `TriangleData`/`TriSetup`/`setup_triangle` + `point_segment/triangle_distance`
+  + `orientation/point_in_triangle_2d` + `clamp_int/min3/max3`. No `Array3` dep.
+- `csrc/parallel.h` — thresholds + decls (`sweep_parallel_min_cells 1<<18`,
+  `init_parallel_min_tris 1<<12`, 24 lines). `csrc/parallel.cpp` — OpenMP impl
+  (224 lines): `sweep_parallel` (wavefront) + `packed_min_distance` + `init_parallel`
+  (CAS `((bits<<32)|t)`). Keeps `check_neighbour`/`update_cell` duplicated adjacent
+  for pure LoB.
+- `csrc/makelevelset3.cpp` — orchestrator only (248 lines): `sweep` serial +
+  `init` serial + `apply_signs` (adjacent, parity) + `run_fast_sweeping_passes`
+  dispatcher + `make_level_set3` (2 overloads). Includes `geometry.h` + `parallel.h`
+  explicitly; `check_neighbour`/`update_cell` adjacent to `sweep`.
 - `csrc/makelevelset3.h` — `make_level_set3` decl. Two overloads:
   `std::vector` bridge for `pybind.cpp` + orthodox raw-pointer core
-  (`Vec3ui* tri, int ntri, Vec3f* x`).
-- `csrc/array3.h` — `Array3<T>` over `malloc`/`free` (129 lines, `T* a`,
-  `index(i,j,k)=i+ni*(j+nj*k)`, `NOLINT` on `operator()` for analyzer).
+  (`Vec3ui* tri, int ntri, Vec3f* x`). Header doc collapsed to 1 line.
+- `csrc/array3.h` — `Array3<T>` over `malloc`/`free` (134 lines, `T* storage`,
+  body-assign ctors, no `:`, deleted `data()/size()/resize(value)`,
+  `index(i,j,k)=i+ni*(j+nj*k)`, `NOLINT` on `operator()`).
 - `csrc/vec.h` — `Vec3f{float x,y,z}`, `Vec3ui{uint x,y,z}` with `dot`,
-  `mag2`, `dist` (63 lines, `operator[]` via `(&x)[i]`, C headers
-  `<assert.h>/<math.h>` with operator overloads kept).
-- `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core', [...])`
+  `mag2`, `dist` (50 lines, body-assign ctors, no `operator[]`/`dist2`, C headers
+  `<assert.h>/<math.h>`).
+- `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core',
+  ["csrc/pybind.cpp","csrc/makelevelset3.cpp","csrc/parallel.cpp"])`
   + `cmdclass={'build_ext': build_ext}`. Adds OpenMP flags (`-fopenmp`,
   `/openmp` on MSVC) and `-std=c++20` (`/std:c++20` on MSVC). Derives
   `__version__` from `pyproject.toml` and passes it to `VERSION_INFO`.
@@ -67,20 +76,22 @@ headers but retained overloads (63 lines), and `csrc/util.h` was removed.
   requires `setuptools>=68, pybind11>=2.13`. `[dependency-groups].dev`
   has `matplotlib`, `pybind11>=2.13`, `pytest`, `pytest-benchmark`,
   `ruff>=0.16.4`.
-- `MANIFEST.in` — graft `csrc/`. Needed for sdist.
+- `MANIFEST.in` — graft `csrc/`. Needed for sdist (now picks `geometry.h`+`parallel.*`).
 - `LICENSE` — MIT verbatim.
-- `example/demo.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`.
+- `example/demo.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`
+  (38 lines, obvious section comments removed).
 - `example/visualize_sdf.py` — slice `.npy`, render PNG + level-set OBJ.
 - `example/data/plane.obj` — default test mesh (`result.png`/`result.svg`
   are rendered outputs, not inputs).
 - `tests/test_mesh2sdf.py` — unit tests (output contract, resolution,
-  correctness, grid alignment `[-1,1]` inclusive, fix path, plane e2e).
+  correctness, grid alignment `[-1,1]` inclusive, fix path, plane e2e)
+  (227 lines, `PLANE_OBJ` deduped via `from tests.conftest import PLANE_OBJ`).
 - `tests/test_sweep_equivalence.py` — bit-identical sweep/init at 1/2/5
-  threads (`SIZE=96`, covers both parallel paths).
+  threads (`SIZE=96`, covers both parallel paths) (84 lines, same dedupe).
 - `tests/bench/` — pytest-benchmark suites (`test_core.py`, `test_e2e.py`,
   `conftest.py` session fixtures).
 - `justfile` — dev tasks (`run`, `build`, `test`, `bench`, `bench-compare`,
-  `check`, `clean`, `init`).
+  `check`, `clean`, `init`) (57 lines, `check` now `clang-tidy ... parallel.cpp`).
 - `.clang-format`, `.clang-tidy` — C++ lint config.
 
 ## Build
