@@ -18,7 +18,7 @@ extra_link_args = [] if sys.platform == "win32" else ["-fopenmp"]
 ext_modules = [
     Pybind11Extension(
         "mesh2sdf.core",
-        ["csrc/pybind.cpp", "csrc/makelevelset3.cpp"],
+        ["csrc/pybind.cpp", "csrc/makelevelset3.cpp", "csrc/parallel.cpp"],
         include_dirs=["csrc"],
         define_macros=[("VERSION_INFO", __version__)],
         extra_compile_args=extra_compile_args,

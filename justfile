@@ -40,7 +40,7 @@ check:
     pybind11_inc="$('{{py}}' -c 'import pybind11; print(pybind11.get_include())')"
     python_inc="$('{{py}}' -c 'import sysconfig; print(sysconfig.get_path("include"))')"
 
-    clang-tidy csrc/pybind.cpp csrc/makelevelset3.cpp -- \
+    clang-tidy csrc/pybind.cpp csrc/makelevelset3.cpp csrc/parallel.cpp -- \
         -Icsrc \
         -I"$pybind11_inc" \
         -I"$python_inc" \

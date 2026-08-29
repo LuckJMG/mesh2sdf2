@@ -6,19 +6,14 @@
 
 #include <vector>
 
-// tri is a list of triangles in the mesh, and x is the positions of the
-// vertices absolute distances will be nearly correct for triangle soup, but a
-// closed mesh is needed for accurate signs. Distances for all grid cells within
-// exact_band cells of a triangle should be exact; further away a distance is
-// calculated but it might not be to the closest triangle - just one nearby.
-
-// Modern C++ bridge (pybind island) — keeps std::vector for Python bindings.
+// Distances exact within exact_band cells; farther cells use nearby triangle.
+// Modern C++ bridge — keeps std::vector for Python bindings.
 void make_level_set3(const std::vector<Vec3ui> &tri,
 					 const std::vector<Vec3f> &x, const Vec3f &origin, float dx,
 					 int nx, int ny, int nz, Array3f &phi,
 					 const int exact_band = 1);
 
-// Orthodox core — raw pointers, no STL allocation in the callee.
+// Orthodox core — raw pointers, no STL allocation.
 void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 					 const Vec3f &origin, float dx, int nx, int ny, int nz,
 					 Array3f &phi, const int exact_band = 1);

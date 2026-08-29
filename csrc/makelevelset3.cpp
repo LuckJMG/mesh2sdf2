@@ -1,5 +1,8 @@
 #include "makelevelset3.h"
 
+#include "geometry.h"
+#include "parallel.h"
+
 #include <assert.h>
 #include <atomic>
 #include <math.h>
@@ -11,111 +14,12 @@
 #include <omp.h>
 #endif
 
-struct SegmentData {
-	Vec3f dx;
-	double m2;
-};
-
-struct TriangleData {
-	Vec3f x1, x2, x3;
-	Vec3f x13, x23;
-	float m13, m23, d, invdet;
-	SegmentData edge12, edge13, edge23;
-};
-
-static inline int clamp_int(int v, int lo, int hi) {
-	if (v < lo) {
-		return lo;
-	}
-	if (v > hi) {
-		return hi;
-	}
-	return v;
-}
-
-static inline float min_f(float a, float b) { return a < b ? a : b; }
-
-static inline double min3(double a, double b, double c) {
-	double m = a;
-	if (b < m) {
-		m = b;
-	}
-	if (c < m) {
-		m = c;
-	}
-	return m;
-}
-
-static inline double max3(double a, double b, double c) {
-	double m = a;
-	if (b > m) {
-		m = b;
-	}
-	if (c > m) {
-		m = c;
-	}
-	return m;
-}
-
-// find distance x0 is from segment x1-x2
-static float point_segment_distance(const Vec3f &x0, const Vec3f &x1,
-									const Vec3f &x2, const SegmentData &edge) {
-	// find parameter value of closest point on segment
-	float s12 = (float)(dot(x2 - x0, edge.dx) / edge.m2);
-	if (s12 < 0) {
-		s12 = 0;
-	}
-	else if (s12 > 1) {
-		s12 = 1;
-	}
-	// and find the distance
-	return dist(x0, s12 * x1 + (1 - s12) * x2);
-}
-
-// find distance x0 is from triangle x1-x2-x3
-static float point_triangle_distance(const Vec3f &x0,
-									 const TriangleData &triangle) {
-	// first find barycentric coordinates of closest point on infinite plane
-	Vec3f x03(x0 - triangle.x3);
-	float a = dot(triangle.x13, x03), b = dot(triangle.x23, x03);
-	// the barycentric coordinates themselves
-	float w23 = triangle.invdet * (triangle.m23 * a - triangle.d * b);
-	float w31 = triangle.invdet * (triangle.m13 * b - triangle.d * a);
-	float w12 = 1 - w23 - w31;
-	if (w23 >= 0 && w31 >= 0 && w12 >= 0) { // if we're inside the triangle
-		return dist(x0,
-					w23 * triangle.x1 + w31 * triangle.x2 + w12 * triangle.x3);
-	}
-	else {			   // we have to clamp to one of the edges
-		if (w23 > 0) { // this rules out edge 2-3 for us
-			float d1 = point_segment_distance(x0, triangle.x1, triangle.x2,
-											  triangle.edge12);
-			float d2 = point_segment_distance(x0, triangle.x1, triangle.x3,
-											  triangle.edge13);
-			return d1 < d2 ? d1 : d2;
-		}
-		else if (w31 > 0) { // this rules out edge 1-3
-			float d1 = point_segment_distance(x0, triangle.x1, triangle.x2,
-											  triangle.edge12);
-			float d2 = point_segment_distance(x0, triangle.x2, triangle.x3,
-											  triangle.edge23);
-			return d1 < d2 ? d1 : d2;
-		}
-		else { // w12 must be >0, ruling out edge 1-2
-			float d1 = point_segment_distance(x0, triangle.x1, triangle.x3,
-											  triangle.edge13);
-			float d2 = point_segment_distance(x0, triangle.x2, triangle.x3,
-											  triangle.edge23);
-			return d1 < d2 ? d1 : d2;
-		}
-	}
-}
-
 static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 							Array3i &closest_tri, const Vec3f &gx, int i0,
 							int j0, int k0, int i1, int j1, int k1) {
 	if (closest_tri(i1, j1, k1) >= 0) {
 		const TriangleData &triangle = triangle_data[closest_tri(i1, j1, k1)];
+
 		float d = point_triangle_distance(gx, triangle);
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
@@ -129,6 +33,7 @@ static void update_cell(const TriangleData *triangle_data, Array3f &phi,
 						int i, int j, int k, int di, int dj, int dk) {
 	Vec3f gx((float)i * dx + origin.x, (float)j * dx + origin.y,
 			 (float)k * dx + origin.z);
+
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j, k);
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj, k);
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
@@ -145,33 +50,15 @@ static void update_cell(const TriangleData *triangle_data, Array3f &phi,
 static void sweep(const TriangleData *triangle_data, Array3f &phi,
 				  Array3i &closest_tri, const Vec3f &origin, float dx, int di,
 				  int dj, int dk) {
-	int i0, i1;
-	if (di > 0) {
-		i0 = 1;
-		i1 = phi.ni;
-	}
-	else {
-		i0 = phi.ni - 2;
-		i1 = -1;
-	}
-	int j0, j1;
-	if (dj > 0) {
-		j0 = 1;
-		j1 = phi.nj;
-	}
-	else {
-		j0 = phi.nj - 2;
-		j1 = -1;
-	}
-	int k0, k1;
-	if (dk > 0) {
-		k0 = 1;
-		k1 = phi.nk;
-	}
-	else {
-		k0 = phi.nk - 2;
-		k1 = -1;
-	}
+	int i0 = di > 0 ? 1 : phi.ni - 2;
+	int i1 = di > 0 ? phi.ni : -1;
+
+	int j0 = dj > 0 ? 1 : phi.nj - 2;
+	int j1 = dj > 0 ? phi.nj : -1;
+
+	int k0 = dk > 0 ? 1 : phi.nk - 2;
+	int k1 = dk > 0 ? phi.nk : -1;
+
 	for (int k = k0; k != k1; k += dk) {
 		for (int j = j0; j != j1; j += dj) {
 			for (int i = i0; i != i1; i += di) {
@@ -181,280 +68,6 @@ static void sweep(const TriangleData *triangle_data, Array3f &phi,
 		}
 	}
 }
-
-#ifdef _OPENMP
-static constexpr size_t sweep_parallel_min_cells = 1 << 18;
-
-// Wavefront-parallel variant of sweep(). Cells are grouped by w = di*i + dj*j +
-// dk*k. Every source read by a cell lies 1-3 levels behind it, and cells on one
-// level never touch each other, so each level runs as one omp parallel for.
-// Level order is a topological order of the same dependency DAG as the loop
-// above, so results are bit-identical to the serial sweep at any thread count.
-static void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
-						   Array3i &closest_tri, const Vec3f &origin, float dx,
-						   int di, int dj, int dk) {
-	const int i_lo = di > 0 ? 1 : 0;
-	const int i_hi = di > 0 ? phi.ni - 1 : phi.ni - 2;
-	const int j_lo = dj > 0 ? 1 : 0;
-	const int j_hi = dj > 0 ? phi.nj - 1 : phi.nj - 2;
-	const int k_lo = dk > 0 ? 1 : 0;
-	const int k_hi = dk > 0 ? phi.nk - 1 : phi.nk - 2;
-	int w_min = (di > 0 ? di * i_lo : di * i_hi) +
-				(dj > 0 ? dj * j_lo : dj * j_hi) +
-				(dk > 0 ? dk * k_lo : dk * k_hi);
-	int w_max = (di > 0 ? di * i_hi : di * i_lo) +
-				(dj > 0 ? dj * j_hi : dj * j_lo) +
-				(dk > 0 ? dk * k_hi : dk * k_lo);
-	for (int w = w_min; w <= w_max; ++w) {
-#pragma omp parallel for schedule(static)
-		for (int j = j_lo; j <= j_hi; ++j) {
-			int m = w - dj * j;
-			int t_lo = di > 0 ? i_lo : -i_hi;
-			int t_hi = di > 0 ? i_hi : -i_lo;
-			int a = m - t_hi, b = m - t_lo;
-			int v1 = dk > 0 ? a : -b;
-			int v2 = dk > 0 ? b : -a;
-			int klo = k_lo > v1 ? k_lo : v1;
-			int khi = k_hi < v2 ? k_hi : v2;
-			for (int k = klo; k <= khi; ++k) {
-				int i = di * (m - dk * k);
-				update_cell(triangle_data, phi, closest_tri, origin, dx, i, j,
-							k, di, dj, dk);
-			}
-		}
-	}
-}
-#endif
-
-// calculate twice signed area of triangle (0,0)-(x1,y1)-(x2,y2)
-// return an SOS-determined sign (-1, +1, or 0 only if it's a truly degenerate
-// triangle)
-static int orientation(double x1, double y1, double x2, double y2,
-					   double &twice_signed_area) {
-	twice_signed_area = y1 * x2 - x1 * y2;
-	if (twice_signed_area > 0) {
-		return 1;
-	}
-	if (twice_signed_area < 0) {
-		return -1;
-	}
-	if (y2 > y1 || (y2 == y1 && x1 > x2)) {
-		return 1;
-	}
-	if (y2 < y1 || (y2 == y1 && x1 < x2)) {
-		return -1;
-	}
-	return 0; // only true when x1==x2 and y1==y2
-}
-
-// robust test of (x0,y0) in the triangle (x1,y1)-(x2,y2)-(x3,y3)
-// if true is returned, the barycentric coordinates are set in a,b,c.
-static bool point_in_triangle_2d(double x0, double y0, double x1, double y1,
-								 double x2, double y2, double x3, double y3,
-								 double &a, double &b, double &c) {
-	x1 -= x0;
-	x2 -= x0;
-	x3 -= x0;
-	y1 -= y0;
-	y2 -= y0;
-	y3 -= y0;
-	int signa = orientation(x2, y2, x3, y3, a);
-	if (signa == 0) {
-		return false;
-	}
-	int signb = orientation(x3, y3, x1, y1, b);
-	if (signb != signa) {
-		return false;
-	}
-	int signc = orientation(x1, y1, x2, y2, c);
-	if (signc != signa) {
-		return false;
-	}
-	double sum = a + b + c;
-	assert(sum != 0); // if the SOS signs match and are nonkero, there's no way
-					  // all of a, b, and c are zero.
-	a /= sum;
-	b /= sum;
-	c /= sum;
-	return true;
-}
-
-// per-triangle precomputed data plus the triangle vertices in grid
-// coordinates to high precision, shared by both init paths below
-struct TriSetup {
-	TriangleData triangle;
-	double fip, fjp, fkp, fiq, fjq, fkq, fir, fjr, fkr;
-};
-
-static TriSetup setup_triangle(const Vec3ui &t, const Vec3f *x,
-							   const Vec3f &origin, float dx) {
-	unsigned int p = t.x, q = t.y, r = t.z;
-	TriSetup s;
-	TriangleData &triangle = s.triangle;
-	triangle.x1 = x[p];
-	triangle.x2 = x[q];
-	triangle.x3 = x[r];
-	triangle.x13 = triangle.x1 - triangle.x3;
-	triangle.x23 = triangle.x2 - triangle.x3;
-	triangle.m13 = mag2(triangle.x13);
-	triangle.m23 = mag2(triangle.x23);
-	triangle.d = dot(triangle.x13, triangle.x23);
-	double det =
-		(double)triangle.m13 * triangle.m23 - (double)triangle.d * triangle.d;
-	double det_clamped = det > 1e-30 ? det : 1e-30;
-	triangle.invdet = (float)(1.0 / det_clamped);
-	triangle.edge12 = {triangle.x2 - triangle.x1,
-					   (double)mag2(triangle.x2 - triangle.x1)};
-	triangle.edge13 = {triangle.x3 - triangle.x1,
-					   (double)mag2(triangle.x3 - triangle.x1)};
-	triangle.edge23 = {triangle.x3 - triangle.x2,
-					   (double)mag2(triangle.x3 - triangle.x2)};
-	s.fip = ((double)x[p].x - origin.x) / dx;
-	s.fjp = ((double)x[p].y - origin.y) / dx;
-	s.fkp = ((double)x[p].z - origin.z) / dx;
-	s.fiq = ((double)x[q].x - origin.x) / dx;
-	s.fjq = ((double)x[q].y - origin.y) / dx;
-	s.fkq = ((double)x[q].z - origin.z) / dx;
-	s.fir = ((double)x[r].x - origin.x) / dx;
-	s.fjr = ((double)x[r].y - origin.y) / dx;
-	s.fkr = ((double)x[r].z - origin.z) / dx;
-	return s;
-}
-
-#ifdef _OPENMP
-static constexpr size_t init_parallel_min_tris = 1 << 12;
-
-// Minimum-update of one cell in an array of words packed as
-// (distance bits << 32) | triangle index. Distances written during init are
-// non-negative, and IEEE non-negative floats order by their bit pattern, so
-// integer comparison on the word is a minimum on distance with ties broken
-// by the smaller triangle index. The serial loop updates on strict < while
-// scanning triangles in ascending order, so this reproduces its winner at
-// every cell bitwise.
-static void packed_min_distance(std::atomic<uint64_t> &cell, float d,
-								unsigned int t) {
-	uint32_t bits;
-	static_assert(sizeof(bits) == sizeof(d), "32-bit float required");
-	memcpy(&bits, &d, sizeof(bits));
-	uint64_t packed = ((uint64_t)bits << 32) | t;
-	uint64_t cur = cell.load(std::memory_order_relaxed);
-	while (packed < cur) {
-		if (cell.compare_exchange_weak(cur, packed)) {
-			break;
-		}
-	}
-}
-
-// Parallel variant of init_distances_and_counts() for dense meshes. Triangle
-// bands overlap rarely once a mesh has enough triangles to reach this path,
-// so a CAS minimum-update beats thread-private buffers merged at the end: no
-// merge pass and O(cells) scratch instead of O(threads * cells). The initial
-// upper bound (ni+nj+nk)*dx exceeds every possible distance inside the box
-// (diagonal 2*sqrt(3)), so untouched cells keep the sentinel low word and the
-// unpack pass leaves their phi/closest_tri values alone.
-static void init_distances_and_counts_parallel(
-	const Vec3ui *tri, int ntri, const Vec3f *x, const Vec3f &origin, float dx,
-	int ni, int nj, int nk, const int exact_band, Array3f &phi,
-	Array3i &closest_tri, Array3i &intersection_count,
-	TriangleData *triangle_data) {
-	float phi_init = (float)(ni + nj + nk) * dx;
-	uint32_t init_bits;
-	memcpy(&init_bits, &phi_init, sizeof(init_bits));
-	const uint64_t sentinel = ((uint64_t)init_bits << 32) | 0xffffffffu;
-	const size_t ncells = (size_t)ni * nj * nk;
-	std::atomic<uint64_t> *packed =
-		(std::atomic<uint64_t> *)malloc(ncells * sizeof(std::atomic<uint64_t>));
-	assert(packed != NULL || ncells == 0);
-	for (size_t c = 0; c < ncells; ++c) {
-		new (&packed[c]) std::atomic<uint64_t>(sentinel);
-	}
-#pragma omp parallel
-	{
-#pragma omp for schedule(dynamic)
-		for (int t = 0; t < ntri; ++t) {
-			TriSetup setup = setup_triangle(tri[t], x, origin, dx);
-			triangle_data[t] = setup.triangle;
-			// do distances nearby
-			int i0 = clamp_int((int)min3(setup.fip, setup.fiq, setup.fir) -
-								   exact_band,
-							   0, ni - 1),
-				i1 = clamp_int((int)max3(setup.fip, setup.fiq, setup.fir) +
-								   exact_band + 1,
-							   0, ni - 1);
-			int j0 = clamp_int((int)min3(setup.fjp, setup.fjq, setup.fjr) -
-								   exact_band,
-							   0, nj - 1),
-				j1 = clamp_int((int)max3(setup.fjp, setup.fjq, setup.fjr) +
-								   exact_band + 1,
-							   0, nj - 1);
-			int k0 = clamp_int((int)min3(setup.fkp, setup.fkq, setup.fkr) -
-								   exact_band,
-							   0, nk - 1),
-				k1 = clamp_int((int)max3(setup.fkp, setup.fkq, setup.fkr) +
-								   exact_band + 1,
-							   0, nk - 1);
-			for (int k = k0; k <= k1; ++k) {
-				for (int j = j0; j <= j1; ++j) {
-					for (int i = i0; i <= i1; ++i) {
-						Vec3f gx((float)i * dx + origin.x,
-								 (float)j * dx + origin.y,
-								 (float)k * dx + origin.z);
-						float d = point_triangle_distance(gx, setup.triangle);
-						packed_min_distance(packed[i + ni * (j + nj * k)], d,
-											(unsigned int)t);
-					}
-				}
-			}
-			// and do intersection counts
-			j0 = clamp_int((int)ceil(min3(setup.fjp, setup.fjq, setup.fjr)), 0,
-						   nj - 1);
-			j1 = clamp_int((int)floor(max3(setup.fjp, setup.fjq, setup.fjr)), 0,
-						   nj - 1);
-			k0 = clamp_int((int)ceil(min3(setup.fkp, setup.fkq, setup.fkr)), 0,
-						   nk - 1);
-			k1 = clamp_int((int)floor(max3(setup.fkp, setup.fkq, setup.fkr)), 0,
-						   nk - 1);
-			for (int k = k0; k <= k1; ++k) {
-				for (int j = j0; j <= j1; ++j) {
-					double a, b, c;
-					if (point_in_triangle_2d(j, k, setup.fjp, setup.fkp,
-											 setup.fjq, setup.fkq, setup.fjr,
-											 setup.fkr, a, b, c)) {
-						double fi = a * setup.fip + b * setup.fiq +
-									c * setup.fir; // intersection i coordinate
-						int i_interval =
-							(int)ceil(fi); // intersection is in
-										   // (i_interval-1,i_interval]
-						if (i_interval < 0) {
-#pragma omp atomic
-							++intersection_count(
-								0, j,
-								k); // we enlarge the first interval to
-									// include everything to the -x direction
-						}
-						else if (i_interval < ni) {
-#pragma omp atomic
-							++intersection_count(i_interval, j, k);
-						}
-						// we ignore intersections that are beyond the +x side
-						// of the grid
-					}
-				}
-			}
-		}
-	}
-	for (size_t c = 0; c < ncells; ++c) {
-		uint64_t w = packed[c].load(std::memory_order_relaxed);
-		packed[c].~atomic();
-		if ((uint32_t)w != 0xffffffffu) {
-			uint32_t bits = (uint32_t)(w >> 32);
-			memcpy(&phi.a[c], &bits, sizeof(bits));
-			closest_tri.a[c] = (int)(uint32_t)w;
-		}
-	}
-	free(packed);
-}
-#endif
 
 // initialize distances near the mesh within exact_band cells of each triangle,
 // and record triangle intersections along each grid row for later sign
@@ -477,23 +90,25 @@ static void init_distances_and_counts(const Vec3ui *tri, int ntri,
 	for (int t = 0; t < ntri; ++t) {
 		TriSetup setup = setup_triangle(tri[t], x, origin, dx);
 		triangle_data[t] = setup.triangle;
-		// do distances nearby
-		int i0 = clamp_int((int)min3(setup.fip, setup.fiq, setup.fir) -
+
+		int i0 = clamp_int((int)min3(setup.p_i, setup.q_i, setup.r_i) -
 							   exact_band,
 						   0, ni - 1),
-			i1 = clamp_int((int)max3(setup.fip, setup.fiq, setup.fir) +
+			i1 = clamp_int((int)max3(setup.p_i, setup.q_i, setup.r_i) +
 							   exact_band + 1,
 						   0, ni - 1);
-		int j0 = clamp_int((int)min3(setup.fjp, setup.fjq, setup.fjr) -
+
+		int j0 = clamp_int((int)min3(setup.p_j, setup.q_j, setup.r_j) -
 							   exact_band,
 						   0, nj - 1),
-			j1 = clamp_int((int)max3(setup.fjp, setup.fjq, setup.fjr) +
+			j1 = clamp_int((int)max3(setup.p_j, setup.q_j, setup.r_j) +
 							   exact_band + 1,
 						   0, nj - 1);
-		int k0 = clamp_int((int)min3(setup.fkp, setup.fkq, setup.fkr) -
+
+		int k0 = clamp_int((int)min3(setup.p_k, setup.q_k, setup.r_k) -
 							   exact_band,
 						   0, nk - 1),
-			k1 = clamp_int((int)max3(setup.fkp, setup.fkq, setup.fkr) +
+			k1 = clamp_int((int)max3(setup.p_k, setup.q_k, setup.r_k) +
 							   exact_band + 1,
 						   0, nk - 1);
 		for (int k = k0; k <= k1; ++k) {
@@ -509,35 +124,51 @@ static void init_distances_and_counts(const Vec3ui *tri, int ntri,
 				}
 			}
 		}
-		// and do intersection counts
-		j0 = clamp_int((int)ceil(min3(setup.fjp, setup.fjq, setup.fjr)), 0,
+
+		j0 = clamp_int((int)ceil(min3(setup.p_j, setup.q_j, setup.r_j)), 0,
 					   nj - 1);
-		j1 = clamp_int((int)floor(max3(setup.fjp, setup.fjq, setup.fjr)), 0,
+		j1 = clamp_int((int)floor(max3(setup.p_j, setup.q_j, setup.r_j)), 0,
 					   nj - 1);
-		k0 = clamp_int((int)ceil(min3(setup.fkp, setup.fkq, setup.fkr)), 0,
+
+		k0 = clamp_int((int)ceil(min3(setup.p_k, setup.q_k, setup.r_k)), 0,
 					   nk - 1);
-		k1 = clamp_int((int)floor(max3(setup.fkp, setup.fkq, setup.fkr)), 0,
+		k1 = clamp_int((int)floor(max3(setup.p_k, setup.q_k, setup.r_k)), 0,
 					   nk - 1);
 		for (int k = k0; k <= k1; ++k) {
 			for (int j = j0; j <= j1; ++j) {
 				double a, b, c;
-				if (point_in_triangle_2d(j, k, setup.fjp, setup.fkp, setup.fjq,
-										 setup.fkq, setup.fjr, setup.fkr, a, b,
+				if (point_in_triangle_2d(j, k, setup.p_j, setup.p_k, setup.q_j,
+										 setup.q_k, setup.r_j, setup.r_k, a, b,
 										 c)) {
-					double fi = a * setup.fip + b * setup.fiq +
-								c * setup.fir; // intersection i coordinate
-					int i_interval = (int)ceil(
-						fi); // intersection is in (i_interval-1,i_interval]
+					double fi = a * setup.p_i + b * setup.q_i + c * setup.r_i;
+					int i_interval = (int)ceil(fi);
 					if (i_interval < 0) {
-						++intersection_count(
-							0, j, k); // we enlarge the first interval to
-									  // include everything to the -x direction
+						++intersection_count(0, j, k);
 					}
 					else if (i_interval < ni) {
 						++intersection_count(i_interval, j, k);
 					}
-					// we ignore intersections that are beyond the +x side of
-					// the grid
+				}
+			}
+		}
+	}
+}
+
+// figure out signs (inside/outside) from intersection counts
+// Kept adjacent to init_distances_and_counts: both handle parity via
+// intersection_count, while the sweep phase is distance-only.
+static void
+apply_signs_from_intersection_counts(const Array3i &intersection_count,
+									 Array3f &phi, int ni, int nj, int nk) {
+#pragma omp parallel for collapse(2)
+	for (int k = 0; k < nk; ++k) {
+		for (int j = 0; j < nj; ++j) {
+			int total_count = 0;
+			for (int i = 0; i < ni; ++i) {
+				total_count += intersection_count(i, j, k);
+				if (total_count % 2 ==
+					1) { // if parity of intersections so far is odd,
+					phi(i, j, k) = -phi(i, j, k); // we are inside the mesh
 				}
 			}
 		}
@@ -568,25 +199,6 @@ static void run_fast_sweeping_passes(const TriangleData *triangle_data,
 	}
 }
 
-// figure out signs (inside/outside) from intersection counts
-static void
-apply_signs_from_intersection_counts(const Array3i &intersection_count,
-									 Array3f &phi, int ni, int nj, int nk) {
-#pragma omp parallel for collapse(2)
-	for (int k = 0; k < nk; ++k) {
-		for (int j = 0; j < nj; ++j) {
-			int total_count = 0;
-			for (int i = 0; i < ni; ++i) {
-				total_count += intersection_count(i, j, k);
-				if (total_count % 2 ==
-					1) { // if parity of intersections so far is odd,
-					phi(i, j, k) = -phi(i, j, k); // we are inside the mesh
-				}
-			}
-		}
-	}
-}
-
 void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 					 const Vec3f &origin, float dx, int ni, int nj, int nk,
 					 Array3f &phi, const int exact_band) {
@@ -594,6 +206,7 @@ void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 	if (ni <= 0 || nj <= 0 || nk <= 0) {
 		return;
 	}
+
 	phi.resize(ni, nj, nk);
 	phi.assign((float)(ni + nj + nk) * dx); // upper bound on distance
 	Array3i closest_tri(ni, nj, nk, -1);
@@ -601,22 +214,26 @@ void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 							   0); // intersection_count(i,j,k) is # of tri
 								   // intersections in (i-1,i]x{j}x{k}
 	TriangleData *triangle_data = NULL;
+
 	if (ntri > 0) {
 		triangle_data =
 			(TriangleData *)malloc((size_t)ntri * sizeof(TriangleData));
 		assert(triangle_data != NULL);
 	}
+
 	init_distances_and_counts(tri, ntri, x, origin, dx, ni, nj, nk, exact_band,
 							  phi, closest_tri, intersection_count,
 							  triangle_data);
-	assert(phi.a != NULL);
-	assert(closest_tri.a != NULL);
-	assert(intersection_count.a != NULL);
+
+	assert(phi.storage != NULL);
+	assert(closest_tri.storage != NULL);
+	assert(intersection_count.storage != NULL);
 	assert(triangle_data != NULL || ntri == 0);
 	if (ntri == 0) {
 		free(triangle_data);
 		return;
 	}
+
 	run_fast_sweeping_passes(triangle_data, phi, closest_tri, origin, dx);
 	apply_signs_from_intersection_counts(intersection_count, phi, ni, nj, nk);
 	free(triangle_data);
