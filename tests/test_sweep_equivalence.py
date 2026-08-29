@@ -21,8 +21,8 @@ import numpy as np
 import pytest
 import trimesh
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-PLANE_OBJ = REPO_ROOT / "example" / "data" / "plane.obj"
+from tests.conftest import PLANE_OBJ
+
 SIZE = 96  # above the 2**18-cell threshold in makelevelset3.cpp
 THREAD_COUNTS = ("1", "2", "5")
 

@@ -1,14 +1,10 @@
-from pathlib import Path
-
 import mesh2sdf.core
 import numpy as np
 import pytest
 import trimesh
 
 import mesh2sdf
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-PLANE_OBJ = REPO_ROOT / "example" / "data" / "plane.obj"
+from tests.conftest import PLANE_OBJ
 
 
 def _watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:

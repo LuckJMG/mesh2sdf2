@@ -19,7 +19,6 @@ level = 2 / size
 
 mesh = trimesh.load(filename, force="mesh")
 
-# normalize mesh
 vertices = mesh.vertices
 bbmin = vertices.min(0)
 bbmax = vertices.max(0)
@@ -27,14 +26,12 @@ center = (bbmin + bbmax) * 0.5
 scale = 2.0 * mesh_scale / (bbmax - bbmin).max()
 vertices = (vertices - center) * scale
 
-# fix mesh
 t0 = time.time()
 sdf, mesh = mesh2sdf.compute(
     vertices, mesh.faces, size, fix=True, level=level, return_mesh=True
 )
 t1 = time.time()
 
-# output
 mesh.vertices = mesh.vertices / scale + center
 mesh.export(filename[:-4] + ".fixed.obj")
 np.save(filename[:-4] + ".npy", sdf)

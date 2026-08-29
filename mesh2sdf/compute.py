@@ -27,7 +27,6 @@ def compute(
       return_mesh (bool): If True, also return the fixed mesh.
     """
 
-    # compute sdf
     sdf = mesh2sdf.core.compute(vertices, faces, size)
     if not fix:
         return (sdf, trimesh.Trimesh(vertices, faces)) if return_mesh else sdf
@@ -36,12 +35,10 @@ def compute(
     sdf = np.abs(sdf)
     vertices, faces, _, _ = skimage.measure.marching_cubes(sdf, level)
 
-    # keep the max component of the extracted mesh
     mesh = trimesh.Trimesh(vertices, faces)
     mesh = max(mesh.split(only_watertight=False),
                key=lambda c: c.extents.max())
-    mesh.vertices = mesh.vertices * (2.0 / (size - 1)) - 1.0  # normalize it to [-1, 1]
+    mesh.vertices = mesh.vertices * (2.0 / (size - 1)) - 1.0
 
-    # re-compute sdf
     sdf = mesh2sdf.core.compute(mesh.vertices, mesh.faces, size)
     return (sdf, mesh) if return_mesh else sdf
