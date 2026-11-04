@@ -29,6 +29,10 @@ bench name="":
 bench-compare old="" new="":
     pytest-benchmark compare {{old}} {{new}} --group-by=name --columns=min,mean,median,stddev
 
+# compare the C++ core across commits: upstream -> each perf step -> HEAD (about 30 min)
+bench-versions:
+    {{py}} tests/bench/compare_versions.py
+
 # run linting: ruff + clang-format + clang-tidy
 check:
     #!/usr/bin/env bash

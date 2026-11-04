@@ -56,6 +56,38 @@ python example/demo.py
 ![Example of a mesh from ShapeNet](https://raw.githubusercontent.com/wang-ps/mesh2sdf/master/example/data/result.png)
 
 
+## Performance
+
+`mesh2sdf2` 2.2.0 computes the SDF about **6x faster** than upstream
+`mesh2sdf` 1.1.0 on a 12-thread CPU. On one thread, it is about 1.8x faster.
+Both numbers are the geometric mean over five workloads (the four below plus a `size=64` cube; median of 3 runs, Python 3.14).
+
+| Workload | upstream | 2.2.0, 12 threads | 2.2.0, 1 thread |
+|---|---|---|---|
+| cube | 6066 ms | 1077 ms (5.6x) | 3163 ms (1.9x) |
+| plane | 7245 ms | 1155 ms (6.3x) | 4007 ms (1.8x) |
+| icosphere, 5k triangles | 7442 ms | 1200 ms (6.2x) | 4312 ms (1.7x) |
+| icosphere, 20k triangles | 9040 ms | 1409 ms (6.4x) | 5774 ms (1.6x) |
+
+Gain from each improvement (cube, `size=128`, 12 threads, cumulative):
+
+| Stage | Time | Speedup |
+|---|---|---|
+| upstream 1.1.0 | 6066 ms | 1.00x |
+| cache triangle distance data | 4011 ms | 1.51x |
+| wavefront parallel sweep | 1321 ms | 4.59x |
+| Orthodox C++ port | 1167 ms | 5.20x |
+| geometry and parallel split (2.2.0) | 1077 ms | 5.63x |
+
+The C++ core releases the GIL. With `OMP_NUM_THREADS=1`, four Python threads
+that each call `compute` on the cube finish 7.6x faster than upstream
+(24.3 s to 3.2 s). The GIL release alone gives 4x of that. The parallel sign, memcpy, and parallel init steps
+give no measurable gain on these meshes. The sweep takes almost all the time.
+
+To reproduce the numbers, run `just bench-versions`. The run takes about 30 minutes.
+The speedup depends on the number of CPU cores.
+
+
 ## How does it work?
 
 - Given an input mesh, we first compute the **unsigned** distance field with the
