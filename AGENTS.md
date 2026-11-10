@@ -1,283 +1,57 @@
 # mesh2sdf2
 
-Community-maintained fork of
-[mesh2sdf](https://github.com/wang-ps/mesh2sdf) by Peng-Shuai Wang. Same
-algorithm and public API, modernized build: Python 3.10–3.14, setuptools
-≥68, pybind11 ≥2.13. License: MIT (verbatim from upstream).
+Fork of [mesh2sdf](https://github.com/wang-ps/mesh2sdf). The PyPI name is
+`mesh2sdf2`. The import name stays `mesh2sdf` for drop-in compatibility.
+Same algorithm and public API as upstream. Python 3.10–3.14, C++20.
 
-Distribution name on PyPI is `mesh2sdf2`. Import name stays `mesh2sdf`
-for drop-in compatibility. Maintainer: Lucas Mosquera. Upstream credit
-in `pyproject.toml` `authors` + `[project.urls].Upstream`.
+## Algorithm
 
-## What it does
-
-Algorithm:
-
-1. Fast-sweep unsigned SDF on input mesh. Works on non-watertight, no sign
-   accuracy loss.
-2. If `fix=True`: take `abs(sdf)`, run marching cubes at `level`, get manifold
-   surface, keep largest bbox component.
-3. Re-run signed SDF on fixed mesh. Return signed result.
-
-C++ fast-sweep from SDFGen by Christopher Batty, now Orthodox C++ on C++20.
-C headers (`<assert.h>`, `<math.h>`, `<string.h>`, `<stdint.h>`, `<stdlib.h>`),
-manual `malloc`/`free`, no allocating STL. `pybind11` island stays Modern C++.
-`Vec3` keeps `operator+/-/*` by math exception. Body-assign ctors (no `:` init
-list) for pure-C style. `Array3<T>` templates allowed (`T* storage`, 134
-lines, `NOLINT` on `operator()`). Box hard-coded `[-1, 1]` in
-`csrc/pybind.cpp:27`. `dx = 2/(size - 1)`, so `size` samples span `[-1, 1]`
-inclusive; `size < 2` raises `ValueError`. The algorithm matches upstream SDFGen,
-but the code diverged: `csrc/geometry.h` holds pure geometry
-(`SegmentData`/`TriangleData`/`TriSetup`/`setup_triangle` + `point_*` + `clamp`/
-`min3`/`orientation`, 214 lines, header-only), `csrc/parallel.h/.cpp` holds
-OpenMP paths (`sweep_parallel` + `init_parallel` with packed CAS, 24/224
-lines), `csrc/makelevelset3.cpp` is orchestrator only (248 lines, pure LoB —
-`check_neighbour`/`update_cell` duplicated adjacent to `sweep` both TUs), and
-`csrc/util.h` was removed.
+1. Compute an unsigned SDF on the input mesh with fast sweeping.
+2. If `fix=True`, run marching cubes on `abs(sdf)` at `level` and keep the largest component.
+3. Compute the signed SDF on the fixed mesh.
 
 ## Layout
 
-- `mesh2sdf/__init__.py` — re-export `compute`. Import name `mesh2sdf`
-  preserved for drop-in use.
-- `mesh2sdf/compute.py` — wrap `mesh2sdf.core.compute`. Run `fix=True` path
-  (obvious comments removed).
-- `csrc/pybind.cpp` — pybind11 module `core`. Function `compute(v, f, size)`
-  (65 lines, obvious `// input` comments removed). Releases GIL around
-  `make_level_set3`, copies `grid.storage` with `memcpy`.
-- `csrc/geometry.h` — header-only pure geometry (214 lines): `SegmentData`/
-  `TriangleData`/`TriSetup`/`setup_triangle` + `point_segment/triangle_distance`
-  + `orientation/point_in_triangle_2d` + `clamp_int/min3/max3`. No `Array3` dep.
-- `csrc/parallel.h` — thresholds + decls (`sweep_parallel_min_cells 1<<18`,
-  `init_parallel_min_tris 1<<12`, 24 lines). `csrc/parallel.cpp` — OpenMP impl
-  (224 lines): `sweep_parallel` (wavefront) + `packed_min_distance` + `init_parallel`
-  (CAS `((bits<<32)|t)`). Keeps `check_neighbour`/`update_cell` duplicated adjacent
-  for pure LoB.
-- `csrc/makelevelset3.cpp` — orchestrator only (248 lines): `sweep` serial +
-  `init` serial + `apply_signs` (adjacent, parity) + `run_fast_sweeping_passes`
-  dispatcher + `make_level_set3` (2 overloads). Includes `geometry.h` + `parallel.h`
-  explicitly; `check_neighbour`/`update_cell` adjacent to `sweep`.
-- `csrc/makelevelset3.h` — `make_level_set3` decl. Two overloads:
-  `std::vector` bridge for `pybind.cpp` + orthodox raw-pointer core
-  (`Vec3ui* tri, int ntri, Vec3f* x`). Header doc collapsed to 1 line.
-- `csrc/array3.h` — `Array3<T>` over `malloc`/`free` (134 lines, `T* storage`,
-  body-assign ctors, no `:`, deleted `data()/size()/resize(value)`,
-  `index(i,j,k)=i+ni*(j+nj*k)`, `NOLINT` on `operator()`).
-- `csrc/vec.h` — `Vec3f{float x,y,z}`, `Vec3ui{uint x,y,z}` with `dot`,
-  `mag2`, `dist` (50 lines, body-assign ctors, no `operator[]`/`dist2`, C headers
-  `<assert.h>/<math.h>`).
-- `setup.py` — minimal; declares `Pybind11Extension('mesh2sdf.core',
-  ["csrc/pybind.cpp","csrc/makelevelset3.cpp","csrc/parallel.cpp"])`
-  + `cmdclass={'build_ext': build_ext}`. Adds OpenMP flags (`-fopenmp`,
-  `/openmp` on MSVC) and `-std=c++20` (`/std:c++20` on MSVC). Derives
-  `__version__` from `pyproject.toml` and passes it to `VERSION_INFO`.
-- `pyproject.toml` — PEP 621 metadata + build-system. `[project]`
-  declares name `mesh2sdf2`, `version` (single source of truth for the
-  whole project), deps, classifiers, urls. `[build-system]`
-  requires `setuptools>=68, pybind11>=2.13`. `[dependency-groups].dev`
-  has `matplotlib`, `pybind11>=2.13`, `pytest`, `pytest-benchmark`,
-  `ruff>=0.16.4`.
-- `MANIFEST.in` — graft `csrc/`. Needed for sdist (now picks `geometry.h`+`parallel.*`).
-- `LICENSE` — MIT verbatim.
-- `example/demo.py` — load OBJ, normalize, SDF, save `.fixed.obj` + `.npy`
-  (38 lines, obvious section comments removed).
-- `example/visualize_sdf.py` — slice `.npy`, render PNG + level-set OBJ.
-- `example/data/plane.obj` — default test mesh (`result.png`/`result.svg`
-  are rendered outputs, not inputs).
-- `tests/test_mesh2sdf.py` — unit tests (output contract, resolution,
-  correctness, grid alignment `[-1,1]` inclusive, fix path, plane e2e)
-  (227 lines, `PLANE_OBJ` deduped via `from tests.conftest import PLANE_OBJ`).
-- `tests/test_sweep_equivalence.py` — bit-identical sweep/init at 1/2/5
-  threads (`SIZE=96`, covers both parallel paths) (84 lines, same dedupe).
-- `tests/bench/` — pytest-benchmark suites (`test_core.py`, `test_e2e.py`,
-  `conftest.py` session fixtures).
-- `justfile` — dev tasks (`run`, `build`, `test`, `bench`, `bench-compare`,
-  `check`, `clean`, `init`) (57 lines, `check` now `clang-tidy ... parallel.cpp`).
-- `.clang-format`, `.clang-tidy` — C++ lint config.
-
-## Build
-
-Source install needs a C++ compiler. pybind11 supported compilers:
-https://github.com/pybind/pybind11#supported-compilers
-
-```sh
-pip install mesh2sdf2            # PyPI (fork name)
-pip install -e .                 # source, editable (from repo root)
-```
-
-Build deps from `pyproject.toml [build-system].requires`:
-`setuptools>=68`, `pybind11>=2.13`. `wheel` removed (setuptools
-auto-provides).
-
-Runtime deps from `pyproject.toml [project.dependencies]`:
-`numpy`, `trimesh`, `scikit-image`.
-
-`uv sync` resolves build + runtime + dev via `uv.lock` (populated since v2).
-
-The project has no Python pin in the working tree. The single `.venv` is
-the dev environment and is currently Python 3.14 (uv-managed).
-
-Local dev setup, if `.venv` is missing or built against the wrong Python:
-
-```sh
-uv python install 3.14
-uv venv --python "$(uv python find 3.14 | grep -v '/usr/bin')" .venv
-uv sync --no-dev
-# or: just init  (uv sync)  /  just build  (uv sync + force-reinstall)
-```
+- `mesh2sdf/compute.py` — Python wrapper and the `fix=True` path.
+- `csrc/pybind.cpp` — pybind11 module `mesh2sdf.core`. This file is the only Modern C++ file.
+- `csrc/makelevelset3.cpp` — serial sweep, init, signs, and the dispatcher.
+- `csrc/parallel.h/.cpp` — OpenMP sweep and init, with size thresholds.
+- `csrc/geometry.h`, `csrc/array3.h`, `csrc/vec.h` — header-only geometry and containers.
+- `tests/` — unit tests, thread equivalence tests, and benchmarks in `tests/bench/`.
+- `example/demo.py`, `example/visualize_sdf.py` — example workflow.
 
 ## Public API
 
 `mesh2sdf.compute(vertices, faces, size=128, fix=False, level=0.015, return_mesh=False)`
 
-Inputs:
+- `vertices`: `float32`, shape `(N, 3)`, inside `[-1, 1]`. Out-of-range input gives a wrong SDF without an error.
+- `faces`: `uint`, shape `(M, 3)`.
+- Returns `sdf` as `float32` with shape `(size, size, size)`. If `return_mesh=True`, also returns a `trimesh.Trimesh`.
 
-- `vertices`: `np.ndarray` shape `(N, 3)`, dtype `float32`. MUST lie in `[-1, 1]`. Out-of-range input produce wrong SDF silently.
-- `faces`: `np.ndarray` shape `(M, 3)`, dtype `uint`. Triangle indices.
-- `size`: int. Output grid resolution.
-- `fix`: bool. Run marching-cubes + largest-component fix pass.
-- `level`: float. Level-set value for marching cubes. Recommended `2/size`. Default `0.015` ≈ `2/128`.
-- `return_mesh`: bool. Return fixed mesh too.
+The grid spans `[-1, 1]` inclusive with `dx = 2/(size - 1)`. If `size < 2`, the function raises `ValueError`.
 
-Returns:
-
-- `sdf`: `np.ndarray` shape `(size, size, size)`, dtype `float32`.
-- mesh: `trimesh.Trimesh`. Only if `return_mesh=True`.
-
-## Example workflow
+## Commands
 
 ```sh
-python example/demo.py                    # use example/data/plane.obj
-python example/demo.py path/to/foo.obj    # custom; write foo.fixed.obj + foo.npy
-python example/visualize_sdf.py           # use example/data/plane.npy
-python example/visualize_sdf.py foo.npy   # custom .npy
-# or: just run / just run path/to/foo.obj
+just build       # uv sync + reinstall the C++ extension
+just test        # unit tests
+.venv/bin/python -m pytest tests/ -v   # all tests, includes thread equivalence
+just check       # ruff + clang-format + clang-tidy
+just bench       # benchmarks (disabled in normal test runs)
+just run         # example/demo.py on example/data/plane.obj
 ```
 
-`example/demo.py` flow:
+The dev environment is `.venv` (Python 3.14, uv-managed).
 
-1. Load OBJ via `trimesh.load(force='mesh')`.
-2. Normalize vertices to `[-1, 1]` with `mesh_scale=0.8` (10% padding each side).
-3. Call `mesh2sdf.compute(..., fix=True, level=2/size, return_mesh=True)`.
-4. Un-scale fixed mesh, export `<name>.fixed.obj`. Save `sdf` as `<name>.npy`.
+## Rules
 
-`example/visualize_sdf.py` flow:
-
-1. Load `.npy`.
-2. For each `level` in `[-0.02, 0.0, 0.02]`: marching cubes, export OBJ.
-3. For each slice `i` in `range(size)`: matplotlib contourf PNG.
-
-## Verification
-
-Tests: `pytest`. Unit `tests/test_mesh2sdf.py` (output contract, resolution,
-correctness, grid alignment `[-1,1]` inclusive, fix path, plane e2e).
-Equivalence `tests/test_sweep_equivalence.py` (bit-identical at 1/2/5 threads,
-`SIZE=96`, covers both init and sweep parallel paths). Fixtures in
-`tests/conftest.py` and `tests/bench/conftest.py` (session-scoped where
-possible). Bench `tests/bench/` disabled by default via `addopts`.
-
-```sh
-just test        # pytest tests/test_mesh2sdf.py -v
-.venv/bin/python -m pytest tests/test_sweep_equivalence.py -v
-.venv/bin/python -m pytest tests/ -v
-```
-
-## C++ lint
-
-`csrc/**` is formatted with `clang-format` (LLVM base, 4-tab indent, K&R
-braces, `InsertBraces: true`, `BeforeElse`/`BeforeCatch` on new line) and
-analyzed with `clang-tidy` (conservative checks: `clang-analyzer-*`,
-`bugprone-*` except `bugprone-easily-swappable-parameters`,
-`performance-*`). Config files are `.clang-format` and
-`.clang-tidy` at the repo root. Run everything with `just check`:
-
-```sh
-just check       # ruff check + clang-format --dry-run --Werror + clang-tidy
-```
-
-`just check` reads the pybind11 and Python include paths from the venv and
-passes them directly to clang-tidy (`-Icsrc -I$pybind11_inc -I$python_inc
--DVERSION_INFO=<version from pyproject.toml> -std=c++20`); no
-`compile_commands.json` is generated. Orthodox core is `NOLINT`-suppressed
-for `Array3::operator()` false positive (see `csrc/array3.h:69`); otherwise
-`just check` is green.
-
-Smoke test (Python 3.14, single `.venv`):
-
-```sh
-.venv/bin/python example/demo.py
-just run
-```
-
-Pass if `<output>.fixed.obj` and `<output>.npy` produced without traceback.
-
-Version sanity:
-
-```sh
-.venv/bin/python -c "import mesh2sdf.core; print(mesh2sdf.core.__version__)"   # 2.2.0
-```
-
-Visualization needs `matplotlib` (in `[dependency-groups].dev`):
-
-```sh
-uv sync                                       # installs dev group
-uv run python example/visualize_sdf.py
-```
-
-## Benchmarking
-
-Pytest-driven benchmarks live in `tests/bench/` and use `pytest-benchmark`.
-Default `addopts` in `pyproject.toml` sets `--benchmark-disable`, so the
-unit suite (`just test`) does not run benchmarks.
-
-Run the full benchmark suite:
-
-```sh
-just bench
-just bench my_run          # --benchmark-save=my_run
-just bench-compare         # diff against last saved runs, fails on >10% median regression
-```
-
-This invokes `pytest tests/bench --benchmark-enable ...` and prints a
-comparison table with `min`, `median`, `max`, `stddev`, `iterations`.
-
-Scenarios:
-
-| File | Scope | What it covers |
-|---|---|---|
-| `tests/bench/test_core.py` | `mesh2sdf.core.compute` (C++ fast-sweep) | Cube @ {32,64,128}, plane @ {64,128}, icosphere subdivisions {2,3,4} @ size=128 |
-| `tests/bench/test_e2e.py` | `mesh2sdf.compute` (full wrapper) | Plane `fix=True` and `fix=False` @ {64,128}, icosphere `fix=True` @ {64,128} |
-
-Fixtures in `tests/bench/conftest.py` are session-scoped where possible.
-Numbers are hardware-specific; treat them as a local baseline, not a
-target.
-
-## Gotchas
-
-- **This is a fork.** Distribution is `mesh2sdf2`, but `import mesh2sdf`
-  works. Do not rename the `mesh2sdf/` directory or the `mesh2sdf.core`
-  C++ module — that would break drop-in compatibility.
-- **Upstream** is at github.com/wang-ps/mesh2sdf. Upstream copyright
-  (Peng-Shuai Wang, 2022) is preserved verbatim in `LICENSE`. Fork
-  attribution goes via `pyproject.toml` `authors` and `[project.urls]`.
-  Do not edit `LICENSE` text.
-- `pyproject.toml` has full PEP 621 metadata (ported from `setup.py` in v2).
-  All package metadata lives in `pyproject.toml`; `setup.py` only declares
-  the extension and `cmdclass`.
-- `pyproject.toml` `version` is the single source of truth. `setup.py`
-  derives `__version__` from it at build time, and the justfile parses it
-  for clang-tidy's `-DVERSION_INFO`. Never duplicate the literal elsewhere.
-- `MANIFEST.in` grafts `csrc/`. Without it, sdist missing C++ sources,
-  install fails.
-- `compute.py:43` re-normalizes fixed mesh to `[-1, 1]` after marching
-  cubes. `example/demo.py:32` un-scales for output. Keep both in sync if
-  you touch box convention.
-- `csrc/pybind.cpp:14` declares `vertices` as `float`, `faces` as
-  `unsigned int`. Wrong dtype = pybind error or silent wrong SDF.
-- Orthodox C++: `csrc/pybind.cpp` is the unorthodox island (Modern C++,
-  `pybind11`, exceptions). Do not add `-fno-exceptions` globally — it would
-  break the pybind boundary. Core `csrc/makelevelset3.cpp` / `array3.h` /
-  `vec.h` are orthodox (`-std=c++20`, C headers, `malloc`/`free`).
-- `.gitignore` is minimal (12 lines): `*.so`, `build/`, `dist/`,
-  `*.egg-info/`, `__pycache__/`, `*.py[cod]`, `.venv/`, `.benchmarks/`,
-  `.pytest_cache/`, `.ruff_cache/`, `compile_commands.json`, `.DS_Store`.
-  Generated `*.fixed.obj`/`*.npy` are untracked by default — do not commit.
+- Do not rename the `mesh2sdf/` directory or the `mesh2sdf.core` module. The rename breaks drop-in compatibility.
+- Do not edit `LICENSE`. Put fork attribution in `pyproject.toml`.
+- Keep the `version` in `pyproject.toml` as the only version literal. `setup.py` and the justfile read it.
+- Write the C++ core in Orthodox C++: C headers, `malloc`/`free`, no allocating STL. Only `csrc/pybind.cpp` uses Modern C++.
+- Do not add `-fno-exceptions`. The pybind boundary needs exceptions.
+- Keep `check_neighbour`/`update_cell` duplicated next to each sweep. The duplication is intentional for locality.
+- Parallel paths must stay bit-identical to the serial paths. `tests/test_sweep_equivalence.py` makes sure of this.
+- If you change the `[-1, 1]` box convention, update `csrc/pybind.cpp`, `mesh2sdf/compute.py`, and `example/demo.py` together.
+- Keep `MANIFEST.in` grafting `csrc/`. Without it, the sdist has no C++ sources.
+- Do not commit generated `*.fixed.obj` or `*.npy` files.
