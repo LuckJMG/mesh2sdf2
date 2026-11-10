@@ -4,7 +4,7 @@ import pytest
 import trimesh
 
 import mesh2sdf
-from tests.conftest import _watertight_cube
+from tests.conftest import watertight_cube
 
 
 class TestModuleAPI:
@@ -92,7 +92,7 @@ class TestGridAlignment:
     def test_boundary_planes_lie_on_samples(self):
         # cube faces flush with the [-1, 1] box walls: boundary samples sit on
         # the surface, so their distance is zero (old dx=2/size missed +1)
-        v, f = _watertight_cube(half=1.0)
+        v, f = watertight_cube(half=1.0)
         size = 64
         sdf = mesh2sdf.compute(v, f, size=size)
         mid = size // 2
@@ -101,7 +101,7 @@ class TestGridAlignment:
         assert abs(sdf[mid, mid, size - 1]) < 1e-5
 
     def test_fixed_mesh_spans_full_grid(self):
-        v, f = _watertight_cube(half=1.0)
+        v, f = watertight_cube(half=1.0)
         size = 64
         _, fixed = mesh2sdf.compute(
             v, f, size, fix=True, level=1e-3, return_mesh=True

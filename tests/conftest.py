@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PLANE_OBJ = REPO_ROOT / "example" / "data" / "plane.obj"
 
 
-def _watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
+def watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
     """Axis-aligned cube centered at origin, consistent winding (trimesh.is_watertight)."""
     s = float(half)
     v = np.array(
@@ -32,10 +32,23 @@ def _watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
     return v, f
 
 
+def normalize(mesh: trimesh.Trimesh):
+    """Center and scale to 0.8 like example/demo.py.
+
+    Returns (float32 vertices, uint32 faces, center, scale).
+    """
+    verts = mesh.vertices
+    bbmin, bbmax = verts.min(0), verts.max(0)
+    center = (bbmin + bbmax) * 0.5
+    scale = 2.0 * 0.8 / (bbmax - bbmin).max()
+    v = ((verts - center) * scale).astype(np.float32)
+    return v, np.asarray(mesh.faces, dtype=np.uint32), center, scale
+
+
 @pytest.fixture(scope="session")
 def cube_norm() -> tuple[np.ndarray, np.ndarray]:
     """Watertight cube with vertices already in [-1, 1]."""
-    v, f = _watertight_cube(half=0.5)
+    v, f = watertight_cube(half=0.5)
     mesh = trimesh.Trimesh(v, f)
     assert mesh.is_watertight
     assert mesh.is_winding_consistent
@@ -49,11 +62,4 @@ def plane_norm() -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     Returns (vertices, faces, center, scale). Multiply vertices by ``scale``
     and add ``center`` to undo the normalization.
     """
-    mesh = trimesh.load(PLANE_OBJ, force="mesh")
-    verts = mesh.vertices
-    bbmin = verts.min(0)
-    bbmax = verts.max(0)
-    center = (bbmin + bbmax) * 0.5
-    scale = 2.0 * 0.8 / (bbmax - bbmin).max()
-    v = ((verts - center) * scale).astype(np.float32)
-    return v, mesh.faces, center, scale
+    return normalize(trimesh.load(PLANE_OBJ, force="mesh"))

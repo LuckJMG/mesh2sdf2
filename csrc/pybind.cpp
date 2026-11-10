@@ -11,8 +11,18 @@
 
 namespace py = pybind11;
 
+static const double BOX_MIN = -1.0;
+
+static double grid_dx(int size) {
+	if (size < 2) {
+		throw py::value_error("size must be at least 2");
+	}
+	return 2.0 / (size - 1);
+}
+
 py::array_t<float> compute(const py::array_t<float> &vertices,
 						   const py::array_t<unsigned int> &faces, int size) {
+	float dx = (float)grid_dx(size);
 	std::vector<Vec3f> V;
 	V.reserve(vertices.shape(0));
 	for (int i = 0; i < vertices.shape(0); ++i) {
@@ -26,13 +36,7 @@ py::array_t<float> compute(const py::array_t<float> &vertices,
 		F.push_back(Vec3ui(faces.at(i, 0), faces.at(i, 1), faces.at(i, 2)));
 	}
 
-	Vec3f bbmin(-1.0f, -1.0f, -1.0f);
-	Vec3f bbmax(1.0f, 1.0f, 1.0f);
-	if (size < 2) {
-		throw py::value_error("size must be at least 2");
-	}
-
-	float dx = 2.0f / (float)(size - 1);
+	Vec3f bbmin((float)BOX_MIN, (float)BOX_MIN, (float)BOX_MIN);
 	Array3f grid;
 	{
 		py::gil_scoped_release release;
@@ -57,6 +61,9 @@ PYBIND11_MODULE(core, m) {
           size (int): The resolution of resulting SDF.
         )pbdoc",
 		  py::arg("vertices"), py::arg("faces"), py::arg("size") = 128);
+	m.def("grid_dx", &grid_dx, "Grid spacing for `size` samples over the box.",
+		  py::arg("size"));
+	m.attr("box_min") = BOX_MIN;
 
 #ifdef VERSION_INFO
 	m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

@@ -16,22 +16,22 @@
 static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 							Array3i &closest_tri, const Vec3f &gx, int i0,
 							int j0, int k0, int i1, int j1, int k1) {
-	if (closest_tri(i1, j1, k1) >= 0) {
-		const TriangleData &triangle = triangle_data[closest_tri(i1, j1, k1)];
-
-		float d = point_triangle_distance(gx, triangle);
+	int t = closest_tri(i1, j1, k1);
+	if (t >= 0) {
+		float d = point_triangle_distance(gx, triangle_data[t]);
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
-			closest_tri(i0, j0, k0) = closest_tri(i1, j1, k1);
+			closest_tri(i0, j0, k0) = t;
 		}
 	}
 }
 
 static void update_cell(const TriangleData *triangle_data, Array3f &phi,
-						Array3i &closest_tri, const Vec3f &origin, float dx,
-						int i, int j, int k, int di, int dj, int dk) {
-	Vec3f gx((float)i * dx + origin.x, (float)j * dx + origin.y,
-			 (float)k * dx + origin.z);
+						Array3i &closest_tri, const Grid &grid, int i, int j,
+						int k, int di, int dj, int dk) {
+	Vec3f gx((float)i * grid.dx + grid.origin.x,
+			 (float)j * grid.dx + grid.origin.y,
+			 (float)k * grid.dx + grid.origin.z);
 
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j, k);
 	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj, k);
@@ -52,8 +52,8 @@ static void update_cell(const TriangleData *triangle_data, Array3f &phi,
 // Level order is a topological order of the same dependency DAG as the loop
 // above, so results are bit-identical to the serial sweep at any thread count.
 void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
-					Array3i &closest_tri, const Vec3f &origin, float dx, int di,
-					int dj, int dk) {
+					Array3i &closest_tri, const Grid &grid, int di, int dj,
+					int dk) {
 	const int i_lo = di > 0 ? 1 : 0;
 	const int i_hi = di > 0 ? phi.ni - 1 : phi.ni - 2;
 
@@ -84,8 +84,8 @@ void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 			int khi = k_hi < v2 ? k_hi : v2;
 			for (int k = klo; k <= khi; ++k) {
 				int i = di * (m - dk * k);
-				update_cell(triangle_data, phi, closest_tri, origin, dx, i, j,
-							k, di, dj, dk);
+				update_cell(triangle_data, phi, closest_tri, grid, i, j, k, di,
+							dj, dk);
 			}
 		}
 	}
@@ -121,11 +121,13 @@ static void packed_min_distance(std::atomic<uint64_t> &cell, float d,
 // (diagonal 2*sqrt(3)), so untouched cells keep the sentinel low word and the
 // unpack pass leaves their phi/closest_tri values alone.
 void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
-										const Vec3f *x, const Vec3f &origin,
-										float dx, int ni, int nj, int nk,
+										const Vec3f *vertices, const Grid &grid,
 										Array3f &phi, Array3i &closest_tri,
 										Array3i &intersection_count,
 										TriangleData *triangle_data) {
+	const int ni = grid.ni, nj = grid.nj, nk = grid.nk;
+	const float dx = grid.dx;
+	const Vec3f &origin = grid.origin;
 	float phi_init = (float)(ni + nj + nk) * dx;
 	uint32_t init_bits;
 	memcpy(&init_bits, &phi_init, sizeof(init_bits));
@@ -142,32 +144,15 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 	{
 #pragma omp for schedule(dynamic)
 		for (int t = 0; t < ntri; ++t) {
-			TriSetup setup = setup_triangle(tri[t], x, origin, dx);
+			TriSetup setup = setup_triangle(tri[t], vertices, origin, dx);
 			triangle_data[t] = setup.triangle;
 
-			int i0 = clamp_int((int)min3(setup.p_i, setup.q_i, setup.r_i) -
-								   exact_band,
-							   0, ni - 1),
-				i1 = clamp_int((int)max3(setup.p_i, setup.q_i, setup.r_i) +
-								   exact_band + 1,
-							   0, ni - 1);
-
-			int j0 = clamp_int((int)min3(setup.p_j, setup.q_j, setup.r_j) -
-								   exact_band,
-							   0, nj - 1),
-
-				j1 = clamp_int((int)max3(setup.p_j, setup.q_j, setup.r_j) +
-								   exact_band + 1,
-							   0, nj - 1);
-			int k0 = clamp_int((int)min3(setup.p_k, setup.q_k, setup.r_k) -
-								   exact_band,
-							   0, nk - 1),
-				k1 = clamp_int((int)max3(setup.p_k, setup.q_k, setup.r_k) +
-								   exact_band + 1,
-							   0, nk - 1);
-			for (int k = k0; k <= k1; ++k) {
-				for (int j = j0; j <= j1; ++j) {
-					for (int i = i0; i <= i1; ++i) {
+			IndexRange band_i = band_range(setup.p_i, setup.q_i, setup.r_i, ni);
+			IndexRange band_j = band_range(setup.p_j, setup.q_j, setup.r_j, nj);
+			IndexRange band_k = band_range(setup.p_k, setup.q_k, setup.r_k, nk);
+			for (int k = band_k.lo; k <= band_k.hi; ++k) {
+				for (int j = band_j.lo; j <= band_j.hi; ++j) {
+					for (int i = band_i.lo; i <= band_i.hi; ++i) {
 						Vec3f gx((float)i * dx + origin.x,
 								 (float)j * dx + origin.y,
 								 (float)k * dx + origin.z);
@@ -178,17 +163,10 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 				}
 			}
 
-			j0 = clamp_int((int)ceil(min3(setup.p_j, setup.q_j, setup.r_j)), 0,
-						   nj - 1);
-			j1 = clamp_int((int)floor(max3(setup.p_j, setup.q_j, setup.r_j)), 0,
-						   nj - 1);
-
-			k0 = clamp_int((int)ceil(min3(setup.p_k, setup.q_k, setup.r_k)), 0,
-						   nk - 1);
-			k1 = clamp_int((int)floor(max3(setup.p_k, setup.q_k, setup.r_k)), 0,
-						   nk - 1);
-			for (int k = k0; k <= k1; ++k) {
-				for (int j = j0; j <= j1; ++j) {
+			IndexRange rows_j = row_range(setup.p_j, setup.q_j, setup.r_j, nj);
+			IndexRange rows_k = row_range(setup.p_k, setup.q_k, setup.r_k, nk);
+			for (int k = rows_k.lo; k <= rows_k.hi; ++k) {
+				for (int j = rows_j.lo; j <= rows_j.hi; ++j) {
 					double a, b, c;
 					if (point_in_triangle_2d(j, k, setup.p_j, setup.p_k,
 											 setup.q_j, setup.q_k, setup.r_j,

@@ -38,7 +38,7 @@ def compute(
     mesh = trimesh.Trimesh(vertices, faces)
     mesh = max(mesh.split(only_watertight=False),
                key=lambda c: c.extents.max())
-    mesh.vertices = mesh.vertices * (2.0 / (size - 1)) - 1.0
+    mesh.vertices = mesh.vertices * mesh2sdf.core.grid_dx(size) + mesh2sdf.core.box_min
 
     sdf = mesh2sdf.core.compute(mesh.vertices, mesh.faces, size)
     return (sdf, mesh) if return_mesh else sdf

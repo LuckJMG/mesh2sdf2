@@ -17,6 +17,12 @@ struct TriangleData {
 	SegmentData edge12, edge13, edge23;
 };
 
+struct Grid {
+	Vec3f origin;
+	float dx;
+	int ni, nj, nk;
+};
+
 static constexpr int exact_band = 1;
 
 static inline int clamp_int(int v, int lo, int hi) {
@@ -49,6 +55,25 @@ static inline double max3(double a, double b, double c) {
 		m = c;
 	}
 	return m;
+}
+
+struct IndexRange {
+	int lo, hi;
+};
+
+// grid cells within exact_band of a triangle's extent [min(p,q,r), max(p,q,r)]
+static inline IndexRange band_range(double p, double q, double r, int n) {
+	IndexRange range = {
+		clamp_int((int)min3(p, q, r) - exact_band, 0, n - 1),
+		clamp_int((int)max3(p, q, r) + exact_band + 1, 0, n - 1)};
+	return range;
+}
+
+// grid rows inside a triangle's extent [min(p,q,r), max(p,q,r)]
+static inline IndexRange row_range(double p, double q, double r, int n) {
+	IndexRange range = {clamp_int((int)ceil(min3(p, q, r)), 0, n - 1),
+						clamp_int((int)floor(max3(p, q, r)), 0, n - 1)};
+	return range;
 }
 
 // find distance x0 is from segment x1-x2
@@ -171,15 +196,15 @@ struct TriSetup {
 	double r_i, r_j, r_k;
 };
 
-static inline TriSetup setup_triangle(const Vec3ui &t, const Vec3f *x,
+static inline TriSetup setup_triangle(const Vec3ui &t, const Vec3f *vertices,
 									  const Vec3f &origin, float dx) {
 	unsigned int p = t.x, q = t.y, r = t.z;
 	TriSetup s;
 
 	TriangleData &triangle = s.triangle;
-	triangle.x1 = x[p];
-	triangle.x2 = x[q];
-	triangle.x3 = x[r];
+	triangle.x1 = vertices[p];
+	triangle.x2 = vertices[q];
+	triangle.x3 = vertices[r];
 	triangle.x13 = triangle.x1 - triangle.x3;
 	triangle.x23 = triangle.x2 - triangle.x3;
 	triangle.m13 = mag2(triangle.x13);
@@ -198,15 +223,15 @@ static inline TriSetup setup_triangle(const Vec3ui &t, const Vec3f *x,
 	triangle.edge23 = {triangle.x3 - triangle.x2,
 					   (double)mag2(triangle.x3 - triangle.x2)};
 
-	s.p_i = ((double)x[p].x - origin.x) / dx;
-	s.p_j = ((double)x[p].y - origin.y) / dx;
-	s.p_k = ((double)x[p].z - origin.z) / dx;
-	s.q_i = ((double)x[q].x - origin.x) / dx;
-	s.q_j = ((double)x[q].y - origin.y) / dx;
-	s.q_k = ((double)x[q].z - origin.z) / dx;
-	s.r_i = ((double)x[r].x - origin.x) / dx;
-	s.r_j = ((double)x[r].y - origin.y) / dx;
-	s.r_k = ((double)x[r].z - origin.z) / dx;
+	s.p_i = ((double)vertices[p].x - origin.x) / dx;
+	s.p_j = ((double)vertices[p].y - origin.y) / dx;
+	s.p_k = ((double)vertices[p].z - origin.z) / dx;
+	s.q_i = ((double)vertices[q].x - origin.x) / dx;
+	s.q_j = ((double)vertices[q].y - origin.y) / dx;
+	s.q_k = ((double)vertices[q].z - origin.z) / dx;
+	s.r_i = ((double)vertices[r].x - origin.x) / dx;
+	s.r_j = ((double)vertices[r].y - origin.y) / dx;
+	s.r_k = ((double)vertices[r].z - origin.z) / dx;
 	return s;
 }
 

@@ -45,13 +45,13 @@ template <class T> struct Array3 {
 
 	const T &operator()(int i, int j, int k) const {
 		assert(i >= 0 && i < ni && j >= 0 && j < nj && k >= 0 && k < nk);
-		// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.UndefReturn)
+		// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.UndefReturn,clang-analyzer-security.ArrayBound)
 		return storage[index(i, j, k)];
 	}
 
 	T &operator()(int i, int j, int k) {
 		assert(i >= 0 && i < ni && j >= 0 && j < nj && k >= 0 && k < nk);
-		// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.UndefReturn)
+		// NOLINTNEXTLINE(clang-analyzer-core.uninitialized.UndefReturn,clang-analyzer-security.ArrayBound)
 		return storage[index(i, j, k)];
 	}
 

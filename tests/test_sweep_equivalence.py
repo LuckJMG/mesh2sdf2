@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 import trimesh
 
-from tests.conftest import PLANE_OBJ
+from tests.conftest import PLANE_OBJ, normalize
 
 SIZE = 96  # above the 2**18-cell threshold in makelevelset3.cpp
 THREAD_COUNTS = ("1", "2", "5")
@@ -37,16 +37,6 @@ np.save(sys.argv[2], sdf)
 """
 
 
-def _normalized(mesh: trimesh.Trimesh) -> tuple[np.ndarray, np.ndarray]:
-    verts = mesh.vertices
-    bbmin, bbmax = verts.min(0), verts.max(0)
-    center = (bbmin + bbmax) * 0.5
-    scale = 2.0 * 0.8 / (bbmax - bbmin).max()
-    v = ((verts - center) * scale).astype(np.float32)
-    f = np.asarray(mesh.faces, dtype=np.uint32)
-    return v, f
-
-
 @pytest.fixture(scope="module")
 def mesh_inputs(tmp_path_factory) -> dict[str, Path]:
     out_dir = tmp_path_factory.mktemp("sweep_eq_inputs")
@@ -58,7 +48,7 @@ def mesh_inputs(tmp_path_factory) -> dict[str, Path]:
     }
     inputs = {}
     for name, mesh in meshes.items():
-        v, f = _normalized(mesh)
+        v, f, _, _ = normalize(mesh)
         path = out_dir / f"{name}.npz"
         np.savez(path, v=v, f=f)
         inputs[name] = path

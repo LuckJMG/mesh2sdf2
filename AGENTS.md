@@ -52,6 +52,6 @@ The dev environment is `.venv` (Python 3.14, uv-managed).
 - Do not add `-fno-exceptions`. The pybind boundary needs exceptions.
 - Keep `check_neighbour`/`update_cell` duplicated next to each sweep. The duplication is intentional for locality.
 - Parallel paths must stay bit-identical to the serial paths. `tests/test_sweep_equivalence.py` makes sure of this.
-- If you change the `[-1, 1]` box convention, update `csrc/pybind.cpp`, `mesh2sdf/compute.py`, and `example/demo.py` together.
+- `csrc/pybind.cpp` owns the `[-1, 1]` box and `dx`. `compute.py` reads them from `mesh2sdf.core` (`box_min`, `grid_dx`). If you change the box, update `csrc/pybind.cpp` and `example/demo.py` together.
 - Keep `MANIFEST.in` grafting `csrc/`. Without it, the sdist has no C++ sources.
 - Do not commit generated `*.fixed.obj` or `*.npy` files.

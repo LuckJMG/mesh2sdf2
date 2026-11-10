@@ -6,7 +6,7 @@
 
 // Distances are exact within exact_band cells; farther cells use a nearby
 // triangle.
-void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
+void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *vertices,
 					 const Vec3f &origin, float dx, int nx, int ny, int nz,
 					 Array3f &phi);
 
