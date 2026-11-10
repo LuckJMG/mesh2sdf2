@@ -53,7 +53,7 @@ check:
 
 # remove build artifacts
 clean:
-    rm -rf build/ *.egg-info/ mesh2sdf.egg-info/ mesh2sdf2.egg-info/
+    rm -rf build/ *.egg-info/
     rm -f mesh2sdf/*.so
 
 # initialize the project on a new computer

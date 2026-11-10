@@ -2,7 +2,6 @@
 #define GEOMETRY_H
 
 #include <assert.h>
-#include <math.h>
 
 #include "vec.h"
 
@@ -18,6 +17,8 @@ struct TriangleData {
 	SegmentData edge12, edge13, edge23;
 };
 
+static constexpr int exact_band = 1;
+
 static inline int clamp_int(int v, int lo, int hi) {
 	if (v < lo) {
 		return lo;
@@ -27,8 +28,6 @@ static inline int clamp_int(int v, int lo, int hi) {
 	}
 	return v;
 }
-
-static inline float min_f(float a, float b) { return a < b ? a : b; }
 
 static inline double min3(double a, double b, double c) {
 	double m = a;

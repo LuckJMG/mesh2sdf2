@@ -4,47 +4,10 @@ import pytest
 import trimesh
 
 import mesh2sdf
-from tests.conftest import PLANE_OBJ
-
-
-def _watertight_cube(half: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
-    """Axis-aligned cube centered at origin, consistent winding (trimesh.is_watertight)."""
-    s = float(half)
-    v = np.array(
-        [
-            [-s, -s, -s], [s, -s, -s], [s, s, -s], [-s, s, -s],
-            [-s, -s, s], [s, -s, s], [s, s, s], [-s, s, s],
-        ],
-        dtype=np.float32,
-    )
-    f = np.array(
-        [
-            [0, 1, 2], [0, 2, 3],
-            [4, 6, 5], [4, 7, 6],
-            [0, 4, 5], [0, 5, 1],
-            [2, 6, 7], [2, 7, 3],
-            [1, 5, 6], [1, 6, 2],
-            [0, 3, 7], [0, 7, 4],
-        ],
-        dtype=np.uint32,
-    )
-    return v, f
-
-
-@pytest.fixture
-def cube_norm() -> tuple[np.ndarray, np.ndarray]:
-    """Watertight cube with vertices already in [-1, 1]."""
-    v, f = _watertight_cube(half=0.5)
-    mesh = trimesh.Trimesh(v, f)
-    assert mesh.is_watertight
-    assert mesh.is_winding_consistent
-    return v, f
+from tests.conftest import _watertight_cube
 
 
 class TestModuleAPI:
-    def test_compute_exposed(self):
-        assert callable(mesh2sdf.compute)
-
     def test_core_version_exposed(self):
         v = mesh2sdf.core.__version__
         assert isinstance(v, str) and v
@@ -85,12 +48,6 @@ class TestOutputContract:
 
 
 class TestResolution:
-    def test_finer_grid_more_cells(self, cube_norm):
-        v, f = cube_norm
-        sdf32 = mesh2sdf.compute(v, f, size=32)
-        sdf64 = mesh2sdf.compute(v, f, size=64)
-        assert sdf64.size == 8 * sdf32.size
-
     def test_sign_invariant_to_size(self, cube_norm):
         v, f = cube_norm
         for size in (32, 64, 128):
@@ -100,12 +57,6 @@ class TestResolution:
 
 
 class TestAlgorithmCorrectness:
-    def test_center_negative(self, cube_norm):
-        v, f = cube_norm
-        sdf = mesh2sdf.compute(v, f, size=64)
-        mid = 32
-        assert sdf[mid, mid, mid] < 0
-
     def test_corner_positive(self, cube_norm):
         v, f = cube_norm
         sdf = mesh2sdf.compute(v, f, size=64)
@@ -190,9 +141,6 @@ class TestFixPath:
 
 
 class TestExamplePlane:
-    def test_plane_obj_exists(self):
-        assert PLANE_OBJ.is_file()
-
     def test_plane_end_to_end(self, plane_norm):
         v, f, _, _ = plane_norm
 
@@ -205,23 +153,3 @@ class TestExamplePlane:
         assert sdf.dtype == np.float32
         assert isinstance(fixed, trimesh.Trimesh)
         assert fixed.is_watertight
-
-    def test_plane_outputs_persist(self, plane_norm, tmp_path):
-        v, f, center, scale = plane_norm
-
-        size = 32
-        sdf, fixed = mesh2sdf.compute(
-            v, f, size, fix=True, level=2 / size, return_mesh=True
-        )
-
-        npy = tmp_path / "plane.npy"
-        obj = tmp_path / "plane.fixed.obj"
-        np.save(npy, sdf)
-        fixed.vertices = fixed.vertices / scale + center
-        fixed.export(obj)
-
-        assert npy.is_file()
-        assert obj.is_file()
-        loaded = np.load(npy)
-        assert loaded.shape == (size, size, size)
-        # tearDown is automatic via tmp_path

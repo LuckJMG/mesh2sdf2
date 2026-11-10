@@ -17,7 +17,7 @@ Same algorithm and public API as upstream. Python 3.10–3.14, C++20.
 - `csrc/makelevelset3.cpp` — serial sweep, init, signs, and the dispatcher.
 - `csrc/parallel.h/.cpp` — OpenMP sweep and init, with size thresholds.
 - `csrc/geometry.h`, `csrc/array3.h`, `csrc/vec.h` — header-only geometry and containers.
-- `tests/` — unit tests, thread equivalence tests, and benchmarks in `tests/bench/`.
+- `tests/` — unit tests and thread equivalence tests. Benchmarks are in `tests/bench/`.
 - `example/demo.py`, `example/visualize_sdf.py` — example workflow.
 
 ## Public API

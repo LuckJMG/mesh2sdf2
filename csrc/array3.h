@@ -16,21 +16,6 @@ template <class T> struct Array3 {
 		storage = NULL;
 	}
 
-	Array3(int ni_, int nj_, int nk_) {
-		assert(ni_ >= 0 && nj_ >= 0 && nk_ >= 0);
-
-		ni = ni_;
-		nj = nj_;
-		nk = nk_;
-		storage = NULL;
-
-		size_t n = (size_t)ni_ * nj_ * nk_;
-		if (n > 0) {
-			storage = (T *)malloc(n * sizeof(T));
-			assert(storage != NULL);
-		}
-	}
-
 	Array3(int ni_, int nj_, int nk_, const T &value) {
 		assert(ni_ >= 0 && nj_ >= 0 && nk_ >= 0);
 
@@ -53,36 +38,6 @@ template <class T> struct Array3 {
 
 	Array3(const Array3 &) = delete;
 	Array3 &operator=(const Array3 &) = delete;
-
-	Array3(Array3 &&o) noexcept {
-		ni = o.ni;
-		nj = o.nj;
-		nk = o.nk;
-		storage = o.storage;
-
-		o.ni = 0;
-		o.nj = 0;
-		o.nk = 0;
-		o.storage = NULL;
-	}
-
-	Array3 &operator=(Array3 &&o) noexcept {
-		if (this != &o) {
-			free(storage);
-
-			ni = o.ni;
-			nj = o.nj;
-			nk = o.nk;
-			storage = o.storage;
-
-			o.ni = 0;
-			o.nj = 0;
-			o.nk = 0;
-			o.storage = NULL;
-		}
-
-		return *this;
-	}
 
 	inline size_t index(int i, int j, int k) const {
 		return (size_t)i + (size_t)ni * ((size_t)j + (size_t)nj * (size_t)k);

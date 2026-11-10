@@ -123,8 +123,7 @@ static void packed_min_distance(std::atomic<uint64_t> &cell, float d,
 void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 										const Vec3f *x, const Vec3f &origin,
 										float dx, int ni, int nj, int nk,
-										const int exact_band, Array3f &phi,
-										Array3i &closest_tri,
+										Array3f &phi, Array3i &closest_tri,
 										Array3i &intersection_count,
 										TriangleData *triangle_data) {
 	float phi_init = (float)(ni + nj + nk) * dx;

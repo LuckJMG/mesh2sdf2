@@ -16,8 +16,7 @@ void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 										const Vec3f *x, const Vec3f &origin,
 										float dx, int ni, int nj, int nk,
-										const int exact_band, Array3f &phi,
-										Array3i &closest_tri,
+										Array3f &phi, Array3i &closest_tri,
 										Array3i &intersection_count,
 										TriangleData *triangle_data);
 

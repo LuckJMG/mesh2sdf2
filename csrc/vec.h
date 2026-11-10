@@ -1,7 +1,6 @@
 #ifndef VEC_H
 #define VEC_H
 
-#include <assert.h>
 #include <math.h>
 
 struct Vec3f {

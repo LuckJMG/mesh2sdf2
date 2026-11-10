@@ -4,11 +4,8 @@
 #include "parallel.h"
 
 #include <assert.h>
-#include <atomic>
 #include <math.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -75,15 +72,14 @@ static void sweep(const TriangleData *triangle_data, Array3f &phi,
 static void init_distances_and_counts(const Vec3ui *tri, int ntri,
 									  const Vec3f *x, const Vec3f &origin,
 									  float dx, int ni, int nj, int nk,
-									  const int exact_band, Array3f &phi,
-									  Array3i &closest_tri,
+									  Array3f &phi, Array3i &closest_tri,
 									  Array3i &intersection_count,
 									  TriangleData *triangle_data) {
 #ifdef _OPENMP
 	if (omp_get_max_threads() > 1 && (size_t)ntri >= init_parallel_min_tris) {
 		init_distances_and_counts_parallel(tri, ntri, x, origin, dx, ni, nj, nk,
-										   exact_band, phi, closest_tri,
-										   intersection_count, triangle_data);
+										   phi, closest_tri, intersection_count,
+										   triangle_data);
 		return;
 	}
 #endif
@@ -201,7 +197,7 @@ static void run_fast_sweeping_passes(const TriangleData *triangle_data,
 
 void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 					 const Vec3f &origin, float dx, int ni, int nj, int nk,
-					 Array3f &phi, const int exact_band) {
+					 Array3f &phi) {
 	assert(ni > 0 && nj > 0 && nk > 0);
 	if (ni <= 0 || nj <= 0 || nk <= 0) {
 		return;
@@ -221,9 +217,8 @@ void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 		assert(triangle_data != NULL);
 	}
 
-	init_distances_and_counts(tri, ntri, x, origin, dx, ni, nj, nk, exact_band,
-							  phi, closest_tri, intersection_count,
-							  triangle_data);
+	init_distances_and_counts(tri, ntri, x, origin, dx, ni, nj, nk, phi,
+							  closest_tri, intersection_count, triangle_data);
 
 	assert(phi.storage != NULL);
 	assert(closest_tri.storage != NULL);
@@ -237,12 +232,4 @@ void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *x,
 	run_fast_sweeping_passes(triangle_data, phi, closest_tri, origin, dx);
 	apply_signs_from_intersection_counts(intersection_count, phi, ni, nj, nk);
 	free(triangle_data);
-}
-
-void make_level_set3(const std::vector<Vec3ui> &tri,
-					 const std::vector<Vec3f> &x, const Vec3f &origin, float dx,
-					 int nx, int ny, int nz, Array3f &phi,
-					 const int exact_band) {
-	make_level_set3(tri.data(), (int)tri.size(), x.data(), origin, dx, nx, ny,
-					nz, phi, exact_band);
 }
