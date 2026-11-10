@@ -15,7 +15,7 @@ static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 							Array3i &closest_tri, const Vec3f &gx, int i0,
 							int j0, int k0, int i1, int j1, int k1) {
 	int t = closest_tri(i1, j1, k1);
-	if (t >= 0) {
+	if (t >= 0 && t != closest_tri(i0, j0, k0)) {
 		float d = point_triangle_distance(gx, triangle_data[t]);
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
@@ -85,6 +85,8 @@ static void init_distances_and_counts(const Vec3ui *tri, int ntri,
 	const int ni = grid.ni, nj = grid.nj, nk = grid.nk;
 	const float dx = grid.dx;
 	const Vec3f &origin = grid.origin;
+	phi.assign((float)(ni + nj + nk) * dx); // upper bound on distance
+	closest_tri.assign(-1);
 	for (int t = 0; t < ntri; ++t) {
 		TriSetup setup = setup_triangle(tri[t], vertices, origin, dx);
 		triangle_data[t] = setup.triangle;
@@ -182,12 +184,14 @@ void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *vertices,
 	}
 
 	phi.resize(ni, nj, nk);
-	phi.assign((float)(ni + nj + nk) * dx); // upper bound on distance
 	if (ntri == 0) {
+		phi.assign((float)(ni + nj + nk) * dx);
 		return;
 	}
 
-	Array3i closest_tri(ni, nj, nk, -1);
+	// init_distances_and_counts() fills phi and closest_tri.
+	Array3i closest_tri;
+	closest_tri.resize(ni, nj, nk);
 	Array3i intersection_count(ni, nj, nk,
 							   0); // intersection_count(i,j,k) is # of tri
 								   // intersections in (i-1,i]x{j}x{k}

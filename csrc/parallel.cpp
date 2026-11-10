@@ -17,7 +17,7 @@ static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 							Array3i &closest_tri, const Vec3f &gx, int i0,
 							int j0, int k0, int i1, int j1, int k1) {
 	int t = closest_tri(i1, j1, k1);
-	if (t >= 0) {
+	if (t >= 0 && t != closest_tri(i0, j0, k0)) {
 		float d = point_triangle_distance(gx, triangle_data[t]);
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
@@ -46,16 +46,17 @@ static void update_cell(const TriangleData *triangle_data, Array3f &phi,
 					j - dj, k - dk);
 }
 
-// Wavefront-parallel variant of sweep(). Cells are grouped by w = di*i + dj*j +
-// dk*k. Every source read by a cell lies 1-3 levels behind it, and cells on one
-// level never touch each other, so each level runs as one omp parallel for.
-// Level order is a topological order of the same dependency DAG as the loop
-// above, so results are bit-identical to the serial sweep at any thread count.
+// Wavefront-parallel variant of sweep(). Rows along i are grouped by
+// w = dj*j + dk*k. Each row runs serially in direction di, as in sweep(). Every
+// source read by a cell lies earlier in its own row or on a row 1-2 levels
+// behind it, and rows on one level never touch each other, so each level runs
+// as one omp parallel for. This is a topological order of the same dependency
+// DAG as sweep(), so results are bit-identical at any thread count.
 void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 					Array3i &closest_tri, const Grid &grid, int di, int dj,
 					int dk) {
-	const int i_lo = di > 0 ? 1 : 0;
-	const int i_hi = di > 0 ? phi.ni - 1 : phi.ni - 2;
+	const int i0 = di > 0 ? 1 : phi.ni - 2;
+	const int i1 = di > 0 ? phi.ni : -1;
 
 	const int j_lo = dj > 0 ? 1 : 0;
 	const int j_hi = dj > 0 ? phi.nj - 1 : phi.nj - 2;
@@ -63,27 +64,19 @@ void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 	const int k_lo = dk > 0 ? 1 : 0;
 	const int k_hi = dk > 0 ? phi.nk - 1 : phi.nk - 2;
 
-	int w_min = (di > 0 ? di * i_lo : di * i_hi) +
-				(dj > 0 ? dj * j_lo : dj * j_hi) +
-				(dk > 0 ? dk * k_lo : dk * k_hi);
-	int w_max = (di > 0 ? di * i_hi : di * i_lo) +
-				(dj > 0 ? dj * j_hi : dj * j_lo) +
-				(dk > 0 ? dk * k_hi : dk * k_lo);
+	int w_min =
+		(dj > 0 ? dj * j_lo : dj * j_hi) + (dk > 0 ? dk * k_lo : dk * k_hi);
+	int w_max =
+		(dj > 0 ? dj * j_hi : dj * j_lo) + (dk > 0 ? dk * k_hi : dk * k_lo);
 	for (int w = w_min; w <= w_max; ++w) {
+		// only rows with a valid k, so schedule(static) splits real work
+		int ja = dj * (w - dk * k_lo), jb = dj * (w - dk * k_hi);
+		int jmin = clamp_int(ja < jb ? ja : jb, j_lo, j_hi + 1);
+		int jmax = clamp_int(ja < jb ? jb : ja, j_lo - 1, j_hi);
 #pragma omp parallel for schedule(static)
-		for (int j = j_lo; j <= j_hi; ++j) {
-			int m = w - dj * j;
-			int t_lo = di > 0 ? i_lo : -i_hi;
-			int t_hi = di > 0 ? i_hi : -i_lo;
-			int a = m - t_hi, b = m - t_lo;
-
-			int v1 = dk > 0 ? a : -b;
-			int v2 = dk > 0 ? b : -a;
-
-			int klo = k_lo > v1 ? k_lo : v1;
-			int khi = k_hi < v2 ? k_hi : v2;
-			for (int k = klo; k <= khi; ++k) {
-				int i = di * (m - dk * k);
+		for (int j = jmin; j <= jmax; ++j) {
+			int k = dk * (w - dj * j);
+			for (int i = i0; i != i1; i += di) {
 				update_cell(triangle_data, phi, closest_tri, grid, i, j, k, di,
 							dj, dk);
 			}
@@ -118,8 +111,9 @@ static void packed_min_distance(std::atomic<uint64_t> &cell, float d,
 // so a CAS minimum-update beats thread-private buffers merged at the end: no
 // merge pass and O(cells) scratch instead of O(threads * cells). The initial
 // upper bound (ni+nj+nk)*dx exceeds every possible distance inside the box
-// (diagonal 2*sqrt(3)), so untouched cells keep the sentinel low word and the
-// unpack pass leaves their phi/closest_tri values alone.
+// (diagonal 2*sqrt(3)), so untouched cells keep the sentinel: phi_init bits
+// and closest_tri -1. The unpack pass writes every cell, so the caller does
+// not fill phi or closest_tri first.
 void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 										const Vec3f *vertices, const Grid &grid,
 										Array3f &phi, Array3i &closest_tri,
@@ -137,6 +131,7 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 	std::atomic<uint64_t> *packed =
 		(std::atomic<uint64_t> *)malloc(ncells * sizeof(std::atomic<uint64_t>));
 	assert(packed != NULL || ncells == 0);
+#pragma omp parallel for
 	for (size_t c = 0; c < ncells; ++c) {
 		new (&packed[c]) std::atomic<uint64_t>(sentinel);
 	}
@@ -188,14 +183,13 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 			}
 		}
 	}
+#pragma omp parallel for
 	for (size_t c = 0; c < ncells; ++c) {
 		uint64_t w = packed[c].load(std::memory_order_relaxed);
 		packed[c].~atomic();
-		if ((uint32_t)w != 0xffffffffu) {
-			uint32_t bits = (uint32_t)(w >> 32);
-			memcpy(&phi.storage[c], &bits, sizeof(bits));
-			closest_tri.storage[c] = (int)(uint32_t)w;
-		}
+		uint32_t bits = (uint32_t)(w >> 32);
+		memcpy(&phi.storage[c], &bits, sizeof(bits));
+		closest_tri.storage[c] = (int)(uint32_t)w;
 	}
 	free(packed);
 }
