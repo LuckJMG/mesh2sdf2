@@ -154,8 +154,8 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 
 	const uint64_t sentinel = ((uint64_t)init_bits << 32) | 0xffffffffu;
 	const size_t ncells = (size_t)ni * nj * nk;
-	std::atomic<uint64_t> *packed =
-		(std::atomic<uint64_t> *)malloc(ncells * sizeof(std::atomic<uint64_t>));
+	std::atomic<uint64_t> *packed = (std::atomic<uint64_t> *)alloc_grid(
+		ncells * sizeof(std::atomic<uint64_t>));
 	assert(packed != NULL || ncells == 0);
 #pragma omp parallel for
 	for (size_t c = 0; c < ncells; ++c) {

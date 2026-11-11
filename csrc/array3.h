@@ -5,6 +5,26 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
+
+// Asks for transparent huge pages for grids of 2 MiB or more. Many Linux
+// distributions give them only on request (THP mode "madvise"). Without them, a
+// 512^3 float grid takes about 131k page faults on its first write, and every
+// call writes fresh grids. Release the memory with free().
+static inline void *alloc_grid(size_t bytes) {
+#ifdef __linux__
+	const size_t huge_page = (size_t)2 << 20;
+	void *p = NULL;
+	if (bytes >= huge_page && posix_memalign(&p, huge_page, bytes) == 0) {
+		madvise(p, bytes, MADV_HUGEPAGE);
+		return p;
+	}
+#endif
+	return malloc(bytes);
+}
+
 template <class T> struct Array3 {
 	int ni, nj, nk;
 	T *storage;
@@ -26,7 +46,7 @@ template <class T> struct Array3 {
 
 		size_t n = (size_t)ni_ * nj_ * nk_;
 		if (n > 0) {
-			storage = (T *)malloc(n * sizeof(T));
+			storage = (T *)alloc_grid(n * sizeof(T));
 			assert(storage != NULL);
 			for (size_t i = 0; i < n; ++i) {
 				storage[i] = value;
@@ -72,7 +92,7 @@ template <class T> struct Array3 {
 			storage = NULL;
 
 			if (n > 0) {
-				storage = (T *)malloc(n * sizeof(T));
+				storage = (T *)alloc_grid(n * sizeof(T));
 				assert(storage != NULL);
 			}
 		}

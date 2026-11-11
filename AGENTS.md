@@ -61,5 +61,6 @@ The dev environment is `.venv` (Python 3.14, uv-managed).
 - Each GPU sweep uses its own skewed layout, so that the reads of one plane coalesce. The `relayout` kernel changes the layout between sweeps. If two sweeps differ in `di` but not in `dj`, `relayout_flip_i` does the change through shared-memory tiles, because a plain gather does not coalesce there. Init writes the layout of the first sweep directly.
 - The GPU sweep skips checks for each cell, not for each row as the CPU does. When a GPU cell runs, its source rows are not complete, so the row skip of the CPU cannot work there. `last_change` holds one byte per cell, in the same layout as `phi`. `LIMITS` in `gpu.py` holds, for each sweep and each of the 7 checks, the last earlier sweep that ran the same check.
 - `csrc/pybind.cpp` owns the `[-1, 1]` box and `dx`. `compute.py` reads them from `mesh2sdf.core` (`box_min`, `grid_dx`). If you change the box, update `csrc/pybind.cpp` and `example/demo.py` together.
+- Allocate each grid with `alloc_grid()` from `csrc/array3.h` and release it with `free()`. On Linux it asks for huge pages, which removes about 130k page faults per array at `size=512`.
 - Keep `MANIFEST.in` grafting `csrc/`. Without it, the sdist has no C++ sources.
 - Do not commit generated `*.fixed.obj` or `*.npy` files.
