@@ -10,8 +10,11 @@ __version__ = re.search(
     r'^version = "(.*?)"', Path("pyproject.toml").read_text(encoding="utf-8"), re.MULTILINE
 ).group(1)
 
+# -ffp-contract=off: GCC fuses a*b - c*d into one FMA wherever the target has FMA
+# (aarch64, -march=native). The exact sign test in orientation() then breaks, and
+# the SDF gets the wrong sign. MSVC does not contract without /fp:contract.
 extra_compile_args = (
-	["/openmp", "/std:c++20"] if sys.platform == "win32" else ["-fopenmp", "-std=c++20"]
+	["/openmp", "/std:c++20"] if sys.platform == "win32" else ["-fopenmp", "-std=c++20", "-ffp-contract=off"]
 )
 extra_link_args = [] if sys.platform == "win32" else ["-fopenmp"]
 

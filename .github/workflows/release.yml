@@ -38,6 +38,7 @@ jobs:
 
   wheels:
     strategy:
+      fail-fast: false  # one failing platform must not hide the result of the others
       matrix:
         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest]
     runs-on: ${{ matrix.os }}
