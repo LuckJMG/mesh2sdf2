@@ -21,6 +21,7 @@ Same algorithm and public API as upstream. Python 3.10–3.14, C++20.
 - `mesh2sdf/opencl.py`, `mesh2sdf/sweep.cl` — optional OpenCL path for `device="opencl"`. Init and signs run on the CPU (`mesh2sdf.core.init`, `mesh2sdf.core.apply_signs`). Only the sweeps run on the device.
 - `mesh2sdf/sweeps.py` — sweep order and skip limits for both GPU paths.
 - `tests/` — unit tests, thread equivalence tests, and GPU equivalence tests (`tests/test_gpu.py`, skipped without CuPy or a GPU, and `tests/test_opencl.py`, which runs on pocl without a GPU). Benchmarks are in `tests/bench/`.
+- `docs/plots.py`, `docs/img/` — the performance charts of the README, in a light and a dark SVG each. After a new benchmark run, update the numbers in `docs/plots.py` and run it.
 - `example/demo.py`, `example/visualize_sdf.py` — example workflow.
 
 ## Public API
