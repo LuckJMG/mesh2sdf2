@@ -101,7 +101,7 @@ def size_chart(c):
     ax.minorticks_off()
     ax.patch.set_visible(False)
     header(fig, c, "The GPU gain over 12 threads grows with the grid size",
-           "Speedup of each GPU path over 12 CPU threads on the plane mesh, "
+           "Speedup of each GPU device over 12 CPU threads on the plane mesh, "
            "from 2–2.5× at size 128 to 4–5× at size 512.", "just bench-devices")
     return fig
 
