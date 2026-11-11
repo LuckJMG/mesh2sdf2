@@ -13,7 +13,7 @@
 #include <omp.h>
 #endif
 
-static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
+static bool check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 							Array3i &closest_tri, const Vec3f &gx, int i0,
 							int j0, int k0, int i1, int j1, int k1) {
 	int t = closest_tri(i1, j1, k1);
@@ -22,28 +22,57 @@ static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
 			closest_tri(i0, j0, k0) = t;
+			return true;
 		}
 	}
+	return false;
 }
 
-static void update_cell(const TriangleData *triangle_data, Array3f &phi,
+static bool update_cell(const TriangleData *triangle_data, Array3f &phi,
 						Array3i &closest_tri, const Grid &grid, int i, int j,
 						int k, int di, int dj, int dk) {
 	Vec3f gx((float)i * grid.dx + grid.origin.x,
 			 (float)j * grid.dx + grid.origin.y,
 			 (float)k * grid.dx + grid.origin.z);
 
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j, k);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj, k);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
-					j - dj, k);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j, k - dk);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j,
-					k - dk);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj,
-					k - dk);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
-					j - dj, k - dk);
+	bool changed = check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+								   i - di, j, k);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
+							   j - dj, k);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+							   i - di, j - dj, k);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
+							   j, k - dk);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+							   i - di, j, k - dk);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
+							   j - dj, k - dk);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+							   i - di, j - dj, k - dk);
+	return changed;
+}
+
+static void sweep_row(const TriangleData *triangle_data, Array3f &phi,
+					  Array3i &closest_tri, const Grid &grid, int j, int k,
+					  int di, int dj, int dk, const RowSkip &rows) {
+	int i0 = di > 0 ? 1 : phi.ni - 2;
+	int i1 = di > 0 ? phi.ni : -1;
+
+	bool changed = false;
+	if (row_unchanged(rows, phi.nj, phi.nk, j, k, dj, dk)) {
+		// the last cell lies on the i boundary, which misses some sweeps
+		changed = update_cell(triangle_data, phi, closest_tri, grid, i1 - di, j,
+							  k, di, dj, dk);
+	}
+	else {
+		for (int i = i0; i != i1; i += di) {
+			changed |= update_cell(triangle_data, phi, closest_tri, grid, i, j,
+								   k, di, dj, dk);
+		}
+	}
+	if (changed) {
+		rows.last_change[j + phi.nj * k] = (signed char)rows.sweep;
+	}
 }
 
 // Wavefront-parallel variant of sweep(). Rows along i are grouped by
@@ -51,13 +80,12 @@ static void update_cell(const TriangleData *triangle_data, Array3f &phi,
 // source read by a cell lies earlier in its own row or on a row 1-2 levels
 // behind it, and rows on one level never touch each other, so each level runs
 // as one omp parallel for. This is a topological order of the same dependency
-// DAG as sweep(), so results are bit-identical at any thread count.
+// DAG as sweep(), so results are bit-identical at any thread count. The same
+// holds for rows.last_change: a row writes only its own entry, and reads the
+// entries of rows on earlier levels.
 void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 					Array3i &closest_tri, const Grid &grid, int di, int dj,
-					int dk) {
-	const int i0 = di > 0 ? 1 : phi.ni - 2;
-	const int i1 = di > 0 ? phi.ni : -1;
-
+					int dk, const RowSkip &rows) {
 	const int j_lo = dj > 0 ? 1 : 0;
 	const int j_hi = dj > 0 ? phi.nj - 1 : phi.nj - 2;
 
@@ -76,10 +104,8 @@ void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 #pragma omp parallel for schedule(static)
 		for (int j = jmin; j <= jmax; ++j) {
 			int k = dk * (w - dj * j);
-			for (int i = i0; i != i1; i += di) {
-				update_cell(triangle_data, phi, closest_tri, grid, i, j, k, di,
-							dj, dk);
-			}
+			sweep_row(triangle_data, phi, closest_tri, grid, j, k, di, dj, dk,
+					  rows);
 		}
 	}
 }

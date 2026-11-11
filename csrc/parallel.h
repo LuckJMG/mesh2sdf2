@@ -11,7 +11,7 @@ static constexpr size_t init_parallel_min_tris = 1 << 12;
 
 void sweep_parallel(const TriangleData *triangle_data, Array3f &phi,
 					Array3i &closest_tri, const Grid &grid, int di, int dj,
-					int dk);
+					int dk, const RowSkip &rows);
 
 void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 										const Vec3f *vertices, const Grid &grid,

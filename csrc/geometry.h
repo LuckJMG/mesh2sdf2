@@ -23,6 +23,31 @@ struct Grid {
 	int ni, nj, nk;
 };
 
+// Row-skip state for the fast sweep. last_change[j + nj * k] is the last sweep
+// that changed a cell of row (j, k), or -1. limit[r] is the last earlier sweep
+// that read source row r for all its offsets, or -2 if one offset was never
+// read. Source row r: 0 = (j, k), 1 = (j - dj, k), 2 = (j, k - dk),
+// 3 = (j - dj, k - dk).
+struct RowSkip {
+	signed char *last_change;
+	int sweep;
+	int limit[4];
+};
+
+// True if no interior cell of row (j, k) can change in this sweep. Rows on the
+// j or k boundary do not run in every sweep, so they never skip.
+static inline bool row_unchanged(const RowSkip &rows, int nj, int nk, int j,
+								 int k, int dj, int dk) {
+	if (j < 1 || j > nj - 2 || k < 1 || k > nk - 2) {
+		return false;
+	}
+	const signed char *c = rows.last_change;
+	return c[j + nj * k] <= rows.limit[0] &&
+		   c[j - dj + nj * k] <= rows.limit[1] &&
+		   c[j + nj * (k - dk)] <= rows.limit[2] &&
+		   c[j - dj + nj * (k - dk)] <= rows.limit[3];
+}
+
 static constexpr int exact_band = 1;
 
 static inline int clamp_int(int v, int lo, int hi) {

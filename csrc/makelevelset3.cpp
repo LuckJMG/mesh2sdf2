@@ -4,14 +4,16 @@
 #include "parallel.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
-static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
+static bool check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 							Array3i &closest_tri, const Vec3f &gx, int i0,
 							int j0, int k0, int i1, int j1, int k1) {
 	int t = closest_tri(i1, j1, k1);
@@ -20,36 +22,62 @@ static void check_neighbour(const TriangleData *triangle_data, Array3f &phi,
 		if (d < phi(i0, j0, k0)) {
 			phi(i0, j0, k0) = d;
 			closest_tri(i0, j0, k0) = t;
+			return true;
 		}
 	}
+	return false;
 }
 
-static void update_cell(const TriangleData *triangle_data, Array3f &phi,
+static bool update_cell(const TriangleData *triangle_data, Array3f &phi,
 						Array3i &closest_tri, const Grid &grid, int i, int j,
 						int k, int di, int dj, int dk) {
 	Vec3f gx((float)i * grid.dx + grid.origin.x,
 			 (float)j * grid.dx + grid.origin.y,
 			 (float)k * grid.dx + grid.origin.z);
 
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j, k);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj, k);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
-					j - dj, k);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j, k - dk);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di, j,
-					k - dk);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i, j - dj,
-					k - dk);
-	check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i - di,
-					j - dj, k - dk);
+	bool changed = check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+								   i - di, j, k);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
+							   j - dj, k);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+							   i - di, j - dj, k);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
+							   j, k - dk);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+							   i - di, j, k - dk);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k, i,
+							   j - dj, k - dk);
+	changed |= check_neighbour(triangle_data, phi, closest_tri, gx, i, j, k,
+							   i - di, j - dj, k - dk);
+	return changed;
+}
+
+static void sweep_row(const TriangleData *triangle_data, Array3f &phi,
+					  Array3i &closest_tri, const Grid &grid, int j, int k,
+					  int di, int dj, int dk, const RowSkip &rows) {
+	int i0 = di > 0 ? 1 : phi.ni - 2;
+	int i1 = di > 0 ? phi.ni : -1;
+
+	bool changed = false;
+	if (row_unchanged(rows, phi.nj, phi.nk, j, k, dj, dk)) {
+		// the last cell lies on the i boundary, which misses some sweeps
+		changed = update_cell(triangle_data, phi, closest_tri, grid, i1 - di, j,
+							  k, di, dj, dk);
+	}
+	else {
+		for (int i = i0; i != i1; i += di) {
+			changed |= update_cell(triangle_data, phi, closest_tri, grid, i, j,
+								   k, di, dj, dk);
+		}
+	}
+	if (changed) {
+		rows.last_change[j + phi.nj * k] = (signed char)rows.sweep;
+	}
 }
 
 static void sweep(const TriangleData *triangle_data, Array3f &phi,
 				  Array3i &closest_tri, const Grid &grid, int di, int dj,
-				  int dk) {
-	int i0 = di > 0 ? 1 : phi.ni - 2;
-	int i1 = di > 0 ? phi.ni : -1;
-
+				  int dk, const RowSkip &rows) {
 	int j0 = dj > 0 ? 1 : phi.nj - 2;
 	int j1 = dj > 0 ? phi.nj : -1;
 
@@ -58,10 +86,8 @@ static void sweep(const TriangleData *triangle_data, Array3f &phi,
 
 	for (int k = k0; k != k1; k += dk) {
 		for (int j = j0; j != j1; j += dj) {
-			for (int i = i0; i != i1; i += di) {
-				update_cell(triangle_data, phi, closest_tri, grid, i, j, k, di,
-							dj, dk);
-			}
+			sweep_row(triangle_data, phi, closest_tri, grid, j, k, di, dj, dk,
+					  rows);
 		}
 	}
 }
@@ -151,28 +177,61 @@ apply_signs_from_intersection_counts(const Array3i &intersection_count,
 	}
 }
 
+static const int sweep_dirs[8][3] = {{+1, +1, +1}, {-1, -1, -1}, {+1, +1, -1},
+									 {-1, -1, +1}, {+1, -1, +1}, {-1, +1, -1},
+									 {+1, -1, -1}, {-1, +1, +1}};
+static const int sweep_count = 16; // two passes over the 8 directions
+
+// An interior cell checks offset o in every sweep whose direction matches the
+// nonzero components of o. If the source row did not change since the last
+// such sweep, the check repeats a triangle that already lost, and phi only
+// decreases, so the check cannot change the cell. Skipping it keeps the
+// result bit-identical.
+static void set_row_limits(int s, int limit[4]) {
+	const int *d = sweep_dirs[s % 8];
+	for (int r = 0; r < 4; ++r) {
+		limit[r] = SCHAR_MAX;
+	}
+	for (int o = 1; o < 8; ++o) {
+		int a = o & 1, b = (o >> 1) & 1, c = (o >> 2) & 1;
+		int last = -2;
+		for (int q = s - 1; q >= 0 && last < 0; --q) {
+			const int *e = sweep_dirs[q % 8];
+			if ((!a || e[0] == d[0]) && (!b || e[1] == d[1]) &&
+				(!c || e[2] == d[2])) {
+				last = q;
+			}
+		}
+		if (last < limit[b + 2 * c]) {
+			limit[b + 2 * c] = last;
+		}
+	}
+}
+
 // fill in the rest of the distances with fast sweeping
 static void run_fast_sweeping_passes(const TriangleData *triangle_data,
 									 Array3f &phi, Array3i &closest_tri,
 									 const Grid &grid) {
 	void (*sweep_once)(const TriangleData *, Array3f &, Array3i &, const Grid &,
-					   int, int, int) = sweep;
+					   int, int, int, const RowSkip &) = sweep;
 #ifdef _OPENMP
 	if (omp_get_max_threads() > 1 &&
 		(size_t)phi.ni * phi.nj * phi.nk >= sweep_parallel_min_cells) {
 		sweep_once = sweep_parallel;
 	}
 #endif
-	for (unsigned int pass = 0; pass < 2; ++pass) {
-		sweep_once(triangle_data, phi, closest_tri, grid, +1, +1, +1);
-		sweep_once(triangle_data, phi, closest_tri, grid, -1, -1, -1);
-		sweep_once(triangle_data, phi, closest_tri, grid, +1, +1, -1);
-		sweep_once(triangle_data, phi, closest_tri, grid, -1, -1, +1);
-		sweep_once(triangle_data, phi, closest_tri, grid, +1, -1, +1);
-		sweep_once(triangle_data, phi, closest_tri, grid, -1, +1, -1);
-		sweep_once(triangle_data, phi, closest_tri, grid, +1, -1, -1);
-		sweep_once(triangle_data, phi, closest_tri, grid, -1, +1, +1);
+	size_t nrows = (size_t)phi.nj * phi.nk;
+	RowSkip rows;
+	rows.last_change = (signed char *)malloc(nrows);
+	assert(rows.last_change != NULL);
+	memset(rows.last_change, -1, nrows);
+	for (rows.sweep = 0; rows.sweep < sweep_count; ++rows.sweep) {
+		const int *d = sweep_dirs[rows.sweep % 8];
+		set_row_limits(rows.sweep, rows.limit);
+		sweep_once(triangle_data, phi, closest_tri, grid, d[0], d[1], d[2],
+				   rows);
 	}
+	free(rows.last_change);
 }
 
 void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *vertices,
