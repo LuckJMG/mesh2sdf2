@@ -42,6 +42,7 @@ just test        # unit tests
 .venv/bin/python -m pytest tests/ -v   # all tests, includes thread equivalence
 just check       # ruff + clang-format + clang-tidy
 just bench       # benchmarks (disabled in normal test runs)
+just bench-devices  # CPU, OpenCL, and CUDA on the same workloads (about 15 min)
 just run         # example/demo.py on example/data/plane.obj
 ```
 

@@ -99,12 +99,29 @@ The function returns a `float32` array of shape `(size, size, size)`.
 
 mesh2sdf2 2.4.0 computes the SDF about **28x faster** than the original mesh2sdf 1.1.0 on a 12-thread CPU, and about 7.5x faster on one thread. Both numbers are the geometric mean over five workloads, which are the four in the next table and a cube with `size=64`. Each time is the median of 3 runs with Python 3.14. The 12-thread times vary by about 15% from one round of runs to the next, so each 12-thread time is the median of 5 rounds.
 
-| Workload | mesh2sdf 1.1.0 | 2.4.0, 12 threads | 2.4.0, 1 thread |
+| Workload | mesh2sdf 1.1.0 | 2.4.0, 1 thread | 2.4.0, 12 threads |
 |---|---|---|---|
-| cube | 6059 ms | 94 ms (64.8x) | 264 ms (22.9x) |
-| plane | 7220 ms | 265 ms (27.2x) | 936 ms (7.7x) |
-| icosphere, 5k triangles | 7409 ms | 407 ms (18.2x) | 2362 ms (3.1x) |
-| icosphere, 20k triangles | 9012 ms | 639 ms (14.1x) | 4008 ms (2.2x) |
+| cube | 6059 ms | 264 ms (22.9x) | 94 ms (64.8x) |
+| plane | 7220 ms | 936 ms (7.7x) | 265 ms (27.2x) |
+| icosphere, 5k triangles | 7409 ms | 2362 ms (3.1x) | 407 ms (18.2x) |
+| icosphere, 20k triangles | 9012 ms | 4008 ms (2.2x) | 639 ms (14.1x) |
+
+The next table adds the two GPU paths to the same four workloads, measured on an NVIDIA GeForce GTX 1060 6GB. Each GPU time is the median of 5 rounds of 3 runs in a new process, and the GPU times vary by about 2% from one round to the next. The OpenCL path is slower than the CUDA path, since it computes the init on the CPU and copies the grid to the GPU before the sweeps.
+
+| Workload | mesh2sdf 1.1.0 | 2.4.0, 1 thread | 2.4.0, 12 threads | OpenCL | CUDA |
+|---|---|---|---|---|---|
+| cube | 6059 ms | 264 ms (22.9x) | 94 ms (64.8x) | 83 ms (72.7x) | 66 ms (91.4x) |
+| plane | 7220 ms | 936 ms (7.7x) | 265 ms (27.2x) | 123 ms (58.7x) | 97 ms (74.8x) |
+| icosphere, 5k triangles | 7409 ms | 2362 ms (3.1x) | 407 ms (18.2x) | 168 ms (44.2x) | 133 ms (55.7x) |
+| icosphere, 20k triangles | 9012 ms | 4008 ms (2.2x) | 639 ms (14.1x) | 211 ms (42.8x) | 158 ms (57.1x) |
+
+The gain of the GPU paths over 12 threads grows with the size of the grid. The next table shows this effect on the plane, with the speedup of each GPU path over 12 threads in parentheses. The table measures the current code, which asks Linux for huge pages for each grid, so its CPU times are lower than the times of 2.4.0.
+
+| Size | 1 thread | 12 threads | OpenCL | CUDA |
+|---|---|---|---|---|
+| 128 | 931 ms | 238 ms | 123 ms (1.9x) | 97 ms (2.5x) |
+| 256 | 5883 ms | 1584 ms | 487 ms (3.2x) | 378 ms (4.2x) |
+| 512 | 41356 ms | 10982 ms | 2876 ms (3.8x) | 2154 ms (5.1x) |
 
 The next table gives the cumulative gain of each improvement on the cube, with `size=128` and 12 threads.
 
@@ -122,7 +139,7 @@ The sweep in 2.4.0 skips a row of the grid when no row that it reads changed sin
 
 The C++ core releases the Python global interpreter lock (GIL), so several Python threads can call `compute` at the same time. With `OMP_NUM_THREADS=1`, four Python threads that each process the cube finish 85x faster than with the original project, from 24.1 s to 0.28 s. The release of the GIL gives 4x of that gain. In 2.2.0, the sweep took almost all the time, so the parallel sign, memcpy, and parallel init steps gave no measurable gain on these meshes.
 
-To reproduce the numbers, run `just bench-versions`. The run takes about 30 minutes, and the speedup depends on the number of CPU cores.
+To reproduce the numbers, run `just bench-versions`. The run takes about 30 minutes, and the speedup depends on the number of CPU cores. To reproduce the numbers of the GPU paths and the table of sizes, run `just bench-devices`, which takes about 15 minutes.
 
 ## How it works
 

@@ -29,6 +29,10 @@ bench name="":
 bench-compare old="" new="":
     pytest-benchmark compare {{old}} {{new}} --group-by=name --columns=min,mean,median,stddev
 
+# compare CPU (1 and all threads), OpenCL and CUDA on the same workloads (about 15 min)
+bench-devices:
+    {{py}} tests/bench/compare_devices.py
+
 # compare the C++ core across commits: upstream -> each perf step -> HEAD (about 30 min)
 bench-versions:
     {{py}} tests/bench/compare_versions.py
