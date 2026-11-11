@@ -10,7 +10,7 @@ mesh2sdf2 is a community-maintained fork of [mesh2sdf](https://github.com/wang-p
 
 With mesh2sdf2 you can convert a triangle mesh to a signed distance field (SDF) on a regular grid. The library also works with **non-watertight** meshes, such as the meshes of ShapeNet, since it repairs the surface before it computes the sign.
 
-Compared with the original project, mesh2sdf2 supports Python 3.10 to 3.14, builds with current versions of setuptools and pybind11, and computes the SDF about 26 times faster on a 12-thread CPU.
+Compared with the original project, mesh2sdf2 supports Python 3.10 to 3.14, builds with current versions of setuptools and pybind11, and computes the SDF about 28 times faster on a 12-thread CPU.
 
 ![Example of a mesh from ShapeNet](https://raw.githubusercontent.com/wang-ps/mesh2sdf/master/example/data/result.png)
 
@@ -93,14 +93,14 @@ The function returns a `float32` array of shape `(size, size, size)`.
 
 ## Performance
 
-mesh2sdf2 2.3.0 computes the SDF about **26x faster** than the original mesh2sdf 1.1.0 on a 12-thread CPU, and about 5.6x faster on one thread. Both numbers are the geometric mean over five workloads, which are the four in the next table and a cube with `size=64`. Each time is the median of 3 runs with Python 3.14.
+mesh2sdf2 2.4.0 computes the SDF about **28x faster** than the original mesh2sdf 1.1.0 on a 12-thread CPU, and about 7.5x faster on one thread. Both numbers are the geometric mean over five workloads, which are the four in the next table and a cube with `size=64`. Each time is the median of 3 runs with Python 3.14. The 12-thread times vary by about 15% from one round of runs to the next, so each 12-thread time is the median of 5 rounds.
 
-| Workload | mesh2sdf 1.1.0 | 2.3.0, 12 threads | 2.3.0, 1 thread |
+| Workload | mesh2sdf 1.1.0 | 2.4.0, 12 threads | 2.4.0, 1 thread |
 |---|---|---|---|
-| cube | 6066 ms | 116 ms (52.5x) | 402 ms (15.1x) |
-| plane | 7245 ms | 277 ms (26.2x) | 1195 ms (6.1x) |
-| icosphere, 5k triangles | 7442 ms | 405 ms (18.4x) | 2815 ms (2.6x) |
-| icosphere, 20k triangles | 9040 ms | 634 ms (14.3x) | 4626 ms (2.0x) |
+| cube | 6059 ms | 94 ms (64.8x) | 264 ms (22.9x) |
+| plane | 7220 ms | 265 ms (27.2x) | 936 ms (7.7x) |
+| icosphere, 5k triangles | 7409 ms | 407 ms (18.2x) | 2362 ms (3.1x) |
+| icosphere, 20k triangles | 9012 ms | 639 ms (14.1x) | 4008 ms (2.2x) |
 
 The next table gives the cumulative gain of each improvement on the cube, with `size=128` and 12 threads.
 
@@ -112,8 +112,11 @@ The next table gives the cumulative gain of each improvement on the cube, with `
 | Orthodox C++ port | 1167 ms | 5.20x |
 | geometry and parallel split (2.2.0) | 1077 ms | 5.63x |
 | skip repeated distances, row wavefront (2.3.0) | 116 ms | 52.5x |
+| skip unchanged rows in the sweep (2.4.0) | 94 ms | 64.9x |
 
-The C++ core releases the Python global interpreter lock (GIL), so several Python threads can call `compute` at the same time. With `OMP_NUM_THREADS=1`, four Python threads that each process the cube finish 57x faster than with the original project, from 24.3 s to 0.43 s. The release of the GIL gives 4x of that gain. In 2.2.0, the sweep took almost all the time, so the parallel sign, memcpy, and parallel init steps gave no measurable gain on these meshes.
+The sweep in 2.4.0 skips a row of the grid when no row that it reads changed since the last sweep that read it, since a check on an unchanged row cannot lower any distance. For this reason, the SDF of 2.4.0 is identical to the SDF of 2.3.0, bit for bit.
+
+The C++ core releases the Python global interpreter lock (GIL), so several Python threads can call `compute` at the same time. With `OMP_NUM_THREADS=1`, four Python threads that each process the cube finish 85x faster than with the original project, from 24.1 s to 0.28 s. The release of the GIL gives 4x of that gain. In 2.2.0, the sweep took almost all the time, so the parallel sign, memcpy, and parallel init steps gave no measurable gain on these meshes.
 
 To reproduce the numbers, run `just bench-versions`. The run takes about 30 minutes, and the speedup depends on the number of CPU cores.
 
