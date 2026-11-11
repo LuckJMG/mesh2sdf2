@@ -265,8 +265,7 @@ __device__ inline long long skew(int n, int slice, int b, int c) {
 	return ((long long)slice * n + c) * n + b;
 }
 
-// Address of cell (i, j, k) in the layout of sweep (di, dj, dk). di == 0
-// names the standard layout of csrc/array3.h.
+// di == 0 names the standard layout of csrc/array3.h.
 __device__ inline long long address(int n, int di, int dj, int dk, int i,
 									int j, int k) {
 	if (di == 0) {
@@ -276,7 +275,7 @@ __device__ inline long long address(int n, int di, int dj, int dk, int i,
 	return skew(n, (a + b + c) % n, b, c);
 }
 
-// One block per triangle. Same packed minimum as
+// Same packed minimum as
 // init_distances_and_counts_parallel in csrc/parallel.cpp: the high word holds
 // the non-negative distance bits and the low word the triangle index, so
 // atomicMin keeps the smallest distance and, on ties, the smallest index.
@@ -351,8 +350,7 @@ __device__ inline bool check_neighbour(const TriangleData *triangle_data,
 	return false;
 }
 
-// Gathers phi, closest_tri and last_change from layout s into layout d. One
-// thread per destination address (x, y, z), so the writes coalesce.
+// One thread per destination address (x, y, z), so the writes coalesce.
 extern "C" __global__ void relayout(const float *src_phi, const int *src_tri,
 									const signed char *src_last,
 									float *dst_phi, int *dst_tri,
@@ -398,12 +396,12 @@ relayout_flip_i(const float *src_phi, const int *src_tri,
 	int b = b0 + threadIdx.x;
 	int cs = flip(n, sdk, flip(n, ddk, c));
 
-	// source slice of (s0 + 31, b0), the first one the tile needs
+	// -s + 2b is smallest at s = s0 + 31, b = b0
 	int a_first = flip(n, sdi, flip(n, ddi, pmod(s0 + 31 - b0 - c, n)));
-	int first = a_first + b0 + cs;
+	int first_slice = a_first + b0 + cs;
 	if (b < n) {
 		for (int r = threadIdx.y; r < 3 * 32 - 2; r += blockDim.y) {
-			int ss = pmod(first + r, n);
+			int ss = pmod(first_slice + r, n);
 			int a = flip(n, ddi, flip(n, sdi, pmod(ss - b - cs, n)));
 			int row = pmod(a + b + c, n) - s0;
 			if (row >= 0 && row < 32) {
@@ -425,9 +423,9 @@ relayout_flip_i(const float *src_phi, const int *src_tri,
 	}
 }
 
-// One plane of a sweep, on the skewed layout of that sweep. A cell reads its 7
-// neighbours at a-1, b-1, c-1, which lie on the 1-3 planes before plane
-// a + b + c. slice0..slice3 are the slices of planes plane..plane-3.
+// A cell reads its 7 neighbors at a-1, b-1, c-1, which lie on the 1-3 planes
+// before plane a + b + c. slice0..slice3 are the slices of planes
+// plane..plane-3.
 // Launching one plane after another walks a topological order of the same
 // dependency graph as sweep() in csrc/makelevelset3.cpp, so the results are
 // bit-identical.

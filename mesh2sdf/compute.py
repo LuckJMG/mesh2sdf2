@@ -26,8 +26,9 @@ def compute(
           with a default value of 0.015 (as a reference 2/128 = 0.015625). And the
           recommended default value is 2/size.
       return_mesh (bool): If True, also return the fixed mesh.
-      device (str): 'cpu', or 'cuda' to compute the SDF on the GPU with CuPy.
-          Both devices give bit-identical results.
+      device (str): 'cpu', 'cuda' to compute the SDF on an NVIDIA GPU with CuPy,
+          or 'opencl' to run the sweeps on any OpenCL device (PYOPENCL_CTX
+          selects it). All devices give bit-identical results.
     """
     if device == "cpu":
         sdf_core = mesh2sdf.core.compute
@@ -37,8 +38,14 @@ def compute(
         except ImportError as e:
             raise ImportError("device='cuda' needs CuPy: pip install mesh2sdf2[gpu]") from e
         sdf_core = gpu.compute
+    elif device == "opencl":
+        try:
+            from mesh2sdf import opencl
+        except ImportError as e:
+            raise ImportError("device='opencl' needs PyOpenCL: pip install mesh2sdf2[opencl]") from e
+        sdf_core = opencl.compute
     else:
-        raise ValueError(f"device must be 'cpu' or 'cuda', got {device!r}")
+        raise ValueError(f"device must be 'cpu', 'cuda' or 'opencl', got {device!r}")
 
     sdf = sdf_core(vertices, faces, size)
     if not fix:

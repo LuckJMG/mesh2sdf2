@@ -79,7 +79,7 @@ The signature of the function is `mesh2sdf.compute(vertices, faces, size=128, fi
 | `fix` | If `True`, repairs the mesh before it computes the sign. Use it for non-watertight meshes. |
 | `level` | Level-set value for the repair. The recommended value is `2 / size`. |
 | `return_mesh` | If `True`, also returns the repaired mesh as a `trimesh.Trimesh`. |
-| `device` | `"cpu"` (default) or `"cuda"`. The GPU result is identical to the CPU result, bit for bit. |
+| `device` | `"cpu"` (default), `"cuda"` for NVIDIA GPUs, or `"opencl"` for any OpenCL device, such as AMD, Intel, or NVIDIA GPUs. The result is identical to the CPU result, bit for bit. |
 
 The function returns a `float32` array of shape `(size, size, size)`.
 
@@ -92,6 +92,8 @@ The function returns a `float32` array of shape `(size, size, size)`.
 | `compute` raises `ValueError`. | Use a `size` of 2 or more. |
 | `pip install` fails while it builds the extension. | Install a C++ compiler that pybind11 supports. |
 | `compute` with `device="cuda"` raises `ImportError`. | Install the GPU extra with `pip install mesh2sdf2[gpu]`. It requires an NVIDIA GPU and CUDA 12. |
+| `compute` with `device="opencl"` raises `ImportError`. | Install the OpenCL extra with `pip install mesh2sdf2[opencl]`, and the OpenCL driver of your GPU. |
+| `compute` with `device="opencl"` uses the wrong device, or raises `RuntimeError`. | Set the `PYOPENCL_CTX` environment variable to the device to use, for example `PYOPENCL_CTX=0`. The device must support correctly rounded division and square root. |
 
 ## Performance
 

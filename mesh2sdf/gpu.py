@@ -4,6 +4,7 @@ import cupy as cp
 import numpy as np
 
 import mesh2sdf.core
+from mesh2sdf.sweeps import LIMITS, SWEEPS
 
 _module = cp.RawModule(
     code=Path(__file__).with_name("gpu.cu").read_text(encoding="utf-8"),
@@ -15,28 +16,9 @@ _relayout = _module.get_function("relayout")
 _relayout_flip_i = _module.get_function("relayout_flip_i")
 
 TRIANGLE_DATA_BYTES = 152
-SWEEPS = (
-    (+1, +1, +1), (-1, -1, -1), (+1, +1, -1), (-1, -1, +1),
-    (+1, -1, +1), (-1, +1, -1), (+1, -1, -1), (-1, +1, +1),
-)
-# axes (i, j, k) that each of the 7 checks in sweep_plane steps back along
-OFFSETS = ((1, 0, 0), (0, 1, 0), (1, 1, 0), (0, 0, 1), (1, 0, 1), (0, 1, 1), (1, 1, 1))
-
-
-def _limit(sweep: int, offset: tuple) -> int:
-    """Last earlier sweep that ran this check, or -2. See sweep_plane in gpu.cu."""
-    d = SWEEPS[sweep % 8]
-    for q in range(sweep - 1, -1, -1):
-        if all(not step or SWEEPS[q % 8][axis] == d[axis] for axis, step in enumerate(offset)):
-            return q
-    return -2
-
-
-LIMITS = np.array([[_limit(s, o) for o in OFFSETS] for s in range(16)], dtype=np.int32)
 
 
 def compute(vertices: np.ndarray, faces: np.ndarray, size: int = 128) -> np.ndarray:
-    """GPU twin of `mesh2sdf.core.compute`. The result is bit-identical."""
     dx = np.float32(mesh2sdf.core.grid_dx(size))
     origin = np.float32(mesh2sdf.core.box_min)
     n = np.int32(size)
@@ -57,7 +39,7 @@ def compute(vertices: np.ndarray, faces: np.ndarray, size: int = 128) -> np.ndar
     phi = cp.ascontiguousarray(words[..., 1::2]).view(cp.float32)
     del packed, words
 
-    # each sweep runs on its own skewed layout, see gpu.cu; (0, 0, 0) is the standard layout
+    # Each sweep runs on its own skewed layout, see gpu.cu. (0, 0, 0) is the standard layout.
     last_change = cp.full((size, size, size), -1, dtype=cp.int8)
     spare_phi, spare_tri, spare_last = cp.empty_like(phi), cp.empty_like(closest_tri), cp.empty_like(last_change)
     limits = cp.asarray(LIMITS)

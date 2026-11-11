@@ -35,6 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 gpu = ["cupy-cuda12x"]
+opencl = ["pyopencl"]
 
 [project.urls]
 Homepage = "https://github.com/LuckJMG/mesh2sdf2"
@@ -47,12 +48,13 @@ where = ["."]
 include = ["mesh2sdf*"]
 
 [tool.setuptools.package-data]
-mesh2sdf = ["gpu.cu"]
+mesh2sdf = ["gpu.cu", "sweep.cl"]
 
 [dependency-groups]
 dev = [
     "matplotlib",
     "pybind11>=2.13",
+    "pyopencl[pocl]",
     "pytest",
     "pytest-benchmark",
     "ruff>=0.16.4",
