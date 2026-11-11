@@ -60,5 +60,18 @@ dev = [
     "ruff>=0.16.4",
 ]
 
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
+skip = "*-musllinux_* *-win32 *-win_arm64"
+# Copied next to the test run, so the tests import the installed wheel, not the source tree.
+test-sources = ["tests", "example/data/plane.obj"]
+test-requires = ["pytest"]
+test-command = "python -m pytest tests/test_mesh2sdf.py -q"
+
+[tool.cibuildwheel.windows]
+# Bundles vcomp140.dll, the MSVC OpenMP runtime, which Python does not ship.
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
+
 [tool.pytest.ini_options]
 addopts = "--benchmark-disable"

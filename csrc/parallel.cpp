@@ -158,7 +158,7 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 		ncells * sizeof(std::atomic<uint64_t>));
 	assert(packed != NULL || ncells == 0);
 #pragma omp parallel for
-	for (size_t c = 0; c < ncells; ++c) {
+	for (ptrdiff_t c = 0; c < (ptrdiff_t)ncells; ++c) {
 		new (&packed[c]) std::atomic<uint64_t>(sentinel);
 	}
 #pragma omp parallel
@@ -210,7 +210,7 @@ void init_distances_and_counts_parallel(const Vec3ui *tri, int ntri,
 		}
 	}
 #pragma omp parallel for
-	for (size_t c = 0; c < ncells; ++c) {
+	for (ptrdiff_t c = 0; c < (ptrdiff_t)ncells; ++c) {
 		uint64_t w = packed[c].load(std::memory_order_relaxed);
 		packed[c].~atomic();
 		uint32_t bits = (uint32_t)(w >> 32);

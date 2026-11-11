@@ -49,6 +49,13 @@ just run         # example/demo.py on example/data/plane.obj
 
 The dev environment is `.venv` (Python 3.14, uv-managed).
 
+## Release
+
+1. Change `version` in `pyproject.toml`, then commit and push to `main`.
+2. Create a GitHub release with a tag that is equal to the version, for example `2.5.0`.
+
+`.github/workflows/release.yml` then makes sure that the tag is equal to the version, builds the sdist and the wheels (Linux x86_64 and aarch64, Windows AMD64, Python 3.10–3.14), tests each wheel, and uploads all files to PyPI with trusted publishing. A manual run of the workflow builds and tests the same files without an upload.
+
 ## Rules
 
 - Do not rename the `mesh2sdf/` directory or the `mesh2sdf.core` module. The rename breaks drop-in compatibility.
@@ -69,5 +76,6 @@ The dev environment is `.venv` (Python 3.14, uv-managed).
 - The GPU sweep skips checks for each cell, not for each row as the CPU does. When a GPU cell runs, its source rows are not complete, so the row skip of the CPU cannot work there. `last_change` holds one byte per cell, in the same layout as `phi`. `LIMITS` in `mesh2sdf/sweeps.py` holds, for each sweep and each of the 7 checks, the last earlier sweep that ran the same check.
 - `csrc/pybind.cpp` owns the `[-1, 1]` box and `dx`. `compute.py` reads them from `mesh2sdf.core` (`box_min`, `grid_dx`). If you change the box, update `csrc/pybind.cpp` and `example/demo.py` together.
 - Allocate each grid with `alloc_grid()` from `csrc/array3.h` and release it with `free()`. On Linux it asks for huge pages, which removes about 130k page faults per array at `size=512`.
+- Use a signed index type in each `omp for` loop. MSVC supports only OpenMP 2.0, which rejects an unsigned index such as `size_t`.
 - Keep `MANIFEST.in` grafting `csrc/`. Without it, the sdist has no C++ sources.
 - Do not commit generated `*.fixed.obj` or `*.npy` files.
