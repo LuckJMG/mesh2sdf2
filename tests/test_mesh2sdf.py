@@ -40,6 +40,11 @@ class TestOutputContract:
         with pytest.raises(ValueError):
             mesh2sdf.compute(v, f, size=8, device="tpu")
 
+    def test_apply_signs_rejects_shape_mismatch(self):
+        phi = np.zeros((4, 4, 4), dtype=np.float32)
+        with pytest.raises(ValueError):
+            mesh2sdf.core.apply_signs(phi, np.zeros((4, 4, 5), dtype=np.int32))
+
     def test_return_mesh_paths(self, cube_norm):
         v, f = cube_norm
         only = mesh2sdf.compute(v, f, size=32)

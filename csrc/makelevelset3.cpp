@@ -159,22 +159,34 @@ static void init_distances_and_counts(const Vec3ui *tri, int ntri,
 // figure out signs (inside/outside) from intersection counts
 // Kept adjacent to init_distances_and_counts: both handle parity via
 // intersection_count, while the sweep phase is distance-only.
-static void
-apply_signs_from_intersection_counts(const Array3i &intersection_count,
-									 Array3f &phi, int ni, int nj, int nk) {
+void apply_signs(const int *intersection_count, float *phi, int ni, int nj,
+				 int nk) {
 #pragma omp parallel for collapse(2)
 	for (int k = 0; k < nk; ++k) {
 		for (int j = 0; j < nj; ++j) {
+			size_t row = (size_t)ni * ((size_t)j + (size_t)nj * k);
 			int total_count = 0;
 			for (int i = 0; i < ni; ++i) {
-				total_count += intersection_count(i, j, k);
+				total_count += intersection_count[row + i];
 				if (total_count % 2 ==
 					1) { // if parity of intersections so far is odd,
-					phi(i, j, k) = -phi(i, j, k); // we are inside the mesh
+					phi[row + i] = -phi[row + i]; // we are inside the mesh
 				}
 			}
 		}
 	}
+}
+
+void init_level_set3(const Vec3ui *tri, int ntri, const Vec3f *vertices,
+					 const Grid &grid, Array3f &phi, Array3i &closest_tri,
+					 Array3i &intersection_count, TriangleData *triangle_data) {
+	phi.resize(grid.ni, grid.nj, grid.nk);
+	closest_tri.resize(grid.ni, grid.nj, grid.nk);
+	// intersection_count(i,j,k) is # of tri intersections in (i-1,i]x{j}x{k}
+	intersection_count.resize(grid.ni, grid.nj, grid.nk);
+	intersection_count.assign(0);
+	init_distances_and_counts(tri, ntri, vertices, grid, phi, closest_tri,
+							  intersection_count, triangle_data);
 }
 
 static const int sweep_dirs[8][3] = {{+1, +1, +1}, {-1, -1, -1}, {+1, +1, -1},
@@ -248,25 +260,21 @@ void make_level_set3(const Vec3ui *tri, int ntri, const Vec3f *vertices,
 		return;
 	}
 
-	// init_distances_and_counts() fills phi and closest_tri.
 	Array3i closest_tri;
-	closest_tri.resize(ni, nj, nk);
-	Array3i intersection_count(ni, nj, nk,
-							   0); // intersection_count(i,j,k) is # of tri
-								   // intersections in (i-1,i]x{j}x{k}
+	Array3i intersection_count;
 	TriangleData *triangle_data =
 		(TriangleData *)calloc((size_t)ntri, sizeof(TriangleData));
 	assert(triangle_data != NULL);
 
 	Grid grid = {origin, dx, ni, nj, nk};
-	init_distances_and_counts(tri, ntri, vertices, grid, phi, closest_tri,
-							  intersection_count, triangle_data);
+	init_level_set3(tri, ntri, vertices, grid, phi, closest_tri,
+					intersection_count, triangle_data);
 
 	assert(phi.storage != NULL);
 	assert(closest_tri.storage != NULL);
 	assert(intersection_count.storage != NULL);
 
 	run_fast_sweeping_passes(triangle_data, phi, closest_tri, grid);
-	apply_signs_from_intersection_counts(intersection_count, phi, ni, nj, nk);
+	apply_signs(intersection_count.storage, phi.storage, ni, nj, nk);
 	free(triangle_data);
 }
