@@ -10,7 +10,7 @@ mesh2sdf2 is a community-maintained fork of [mesh2sdf](https://github.com/wang-p
 
 With mesh2sdf2 you can convert a triangle mesh to a signed distance field (SDF) on a regular grid. The library also works with **non-watertight** meshes, such as the meshes of ShapeNet, since it repairs the surface before it computes the sign.
 
-Compared with the original project, mesh2sdf2 supports Python 3.10 to 3.14, builds with current versions of setuptools and pybind11, and computes the SDF about 28 times faster on a 12-thread CPU.
+Compared with the original project, mesh2sdf2 supports Python 3.10 to 3.14, builds with current versions of setuptools and pybind11, and computes the SDF up to 91 times faster, on the CPU or on a GPU.
 
 ![Example of a mesh from ShapeNet](https://raw.githubusercontent.com/wang-ps/mesh2sdf/master/example/data/result.png)
 
@@ -97,32 +97,26 @@ The function returns a `float32` array of shape `(size, size, size)`.
 
 ## Performance
 
-Every device of mesh2sdf2 computes the SDF **2x to 91x faster** than the original mesh2sdf 1.1.0, and all devices compute the same SDF, bit for bit. The next chart compares the four devices on four meshes with `size=128`, on an AMD Ryzen 5 3600 with 12 threads and an NVIDIA GeForce GTX 1060 6GB. Each time is the median of 3 runs in a new process with Python 3.14. The 12-thread times vary by about 15% from one round of runs to the next, so each time of 12 threads and of the GPU devices is the median of 5 rounds.
+The next charts compare the four devices of mesh2sdf2 with mesh2sdf 1.1.0, on an AMD Ryzen 5 3600 with 12 threads and an NVIDIA GeForce GTX 1060 6GB.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/LuckJMG/mesh2sdf2/main/docs/img/speedup-dark.svg">
   <img alt="Bar charts of the speedup over mesh2sdf 1.1.0 at size 128. Cube: 1 thread 24x, 12 threads 82x, OpenCL 73x, CUDA 91x. Plane: 8x, 30x, 59x, 75x. Icosphere with 5k triangles: 3x, 20x, 44x, 56x. Icosphere with 20k triangles: 2x, 15x, 43x, 57x." src="https://raw.githubusercontent.com/LuckJMG/mesh2sdf2/main/docs/img/speedup-light.svg">
 </picture>
 
-The gain depends on the mesh as well as on the device. For example, on the cube, 12 threads are faster than OpenCL, and on the icosphere with 20k triangles, OpenCL is almost 3 times faster than 12 threads. The size of the grid also changes the gain, so the next chart compares the speedup of each GPU device over 12 threads on the plane at three sizes.
-
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/LuckJMG/mesh2sdf2/main/docs/img/grid-size-dark.svg">
   <img alt="Line chart of the speedup over 12 threads on the plane. CUDA: 2.5x at size 128, 4.2x at size 256, and 5.1x at size 512. OpenCL: 1.9x, 3.2x, and 3.8x." src="https://raw.githubusercontent.com/LuckJMG/mesh2sdf2/main/docs/img/grid-size-light.svg">
 </picture>
 
-Every device computes the SDF of the plane in less than one second at size 128, while at size 512 the time goes from 41 s on one thread to 2.2 s with CUDA, so a GPU saves the most time on large grids. For this reason, choose the device by your hardware and your workload:
+The gain changes with the mesh and grows with the grid size, so choose the device by your hardware and your workload:
 
-- `device="cpu"` (the default) with all threads, for a machine without a GPU or for grids of about `size=128`.
-- `device="cpu"` with `OMP_NUM_THREADS=1`, for many meshes at the same time, with one mesh per Python thread or process, since the C++ core releases the global interpreter lock of Python.
+- `device="cpu"` (the default) with all threads, for a machine without a GPU, or for grids of about `size=128`, where every device computes the SDF of the plane in less than one second.
+- `device="cpu"` with `OMP_NUM_THREADS=1`, for many meshes at the same time with one mesh per Python thread, since the C++ core releases the global interpreter lock of Python. In this way, four Python threads process four cubes 85x faster than mesh2sdf 1.1.0.
 - `device="opencl"`, for a GPU with an OpenCL driver that supports correctly rounded division and square root.
 - `device="cuda"`, for an NVIDIA GPU with CUDA 12.
 
-The sweep in 2.4.0 skips a row of the grid when no row that it reads changed since the last sweep that read it, since a check on an unchanged row cannot lower any distance. For this reason, the SDF of 2.4.0 is identical to the SDF of 2.3.0, bit for bit.
-
-The C++ core releases the global interpreter lock of Python, called the GIL, so several Python threads can call `compute` at the same time. With `OMP_NUM_THREADS=1`, four Python threads that each process the cube finish 85x faster than with mesh2sdf 1.1.0, from 24.1 s to 0.28 s. The release of the GIL gives 4x of that gain.
-
-To reproduce the numbers of this section, run `just bench-versions` for mesh2sdf 1.1.0 and the test of Python threads, and `just bench-devices` for the four devices. The first run takes about 30 minutes and the second about 15 minutes, and the speedup depends on the number of CPU cores. The script `docs/plots.py` then draws the charts from these numbers.
+To reproduce the numbers, run `just bench-versions` for mesh2sdf 1.1.0 and the test of Python threads, and `just bench-devices` for the four devices, and then run `docs/plots.py` to draw the charts. The speedup depends on the number of CPU cores.
 
 ## How it works
 
