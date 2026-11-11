@@ -35,6 +35,11 @@ class TestOutputContract:
         with pytest.raises(ValueError):
             mesh2sdf.compute(v, f, size=1)
 
+    def test_unknown_device_rejected(self, cube_norm):
+        v, f = cube_norm
+        with pytest.raises(ValueError):
+            mesh2sdf.compute(v, f, size=8, device="tpu")
+
     def test_return_mesh_paths(self, cube_norm):
         v, f = cube_norm
         only = mesh2sdf.compute(v, f, size=32)

@@ -14,7 +14,7 @@ run mesh="example/data/plane.obj":
 
 # build the project (sync deps + recompile the C++ extension)
 build:
-    uv sync
+    uv sync --all-extras
     uv pip install -e . --force-reinstall
 
 # run pytest suite
@@ -58,4 +58,4 @@ clean:
 
 # initialize the project on a new computer
 init:
-    uv sync
+    uv sync --all-extras

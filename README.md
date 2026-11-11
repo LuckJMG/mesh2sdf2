@@ -69,7 +69,7 @@ Get started with mesh2sdf2 by installing it from PyPI.
 
     The script writes `example/data/plane.fixed.obj` with the repaired mesh and `example/data/plane.npy` with the SDF. To process another mesh, pass its path, for example `python example/demo.py path/to/mesh.obj`.
 
-The signature of the function is `mesh2sdf.compute(vertices, faces, size=128, fix=False, level=0.015, return_mesh=False)`.
+The signature of the function is `mesh2sdf.compute(vertices, faces, size=128, fix=False, level=0.015, return_mesh=False, device="cpu")`.
 
 | Parameter | Description |
 |---|---|
@@ -79,6 +79,7 @@ The signature of the function is `mesh2sdf.compute(vertices, faces, size=128, fi
 | `fix` | If `True`, repairs the mesh before it computes the sign. Use it for non-watertight meshes. |
 | `level` | Level-set value for the repair. The recommended value is `2 / size`. |
 | `return_mesh` | If `True`, also returns the repaired mesh as a `trimesh.Trimesh`. |
+| `device` | `"cpu"` (default) or `"cuda"`. The GPU result is identical to the CPU result, bit for bit. |
 
 The function returns a `float32` array of shape `(size, size, size)`.
 
@@ -90,6 +91,7 @@ The function returns a `float32` array of shape `(size, size, size)`.
 | The sign of the SDF is wrong on an open mesh. | Call `compute` with `fix=True`. |
 | `compute` raises `ValueError`. | Use a `size` of 2 or more. |
 | `pip install` fails while it builds the extension. | Install a C++ compiler that pybind11 supports. |
+| `compute` with `device="cuda"` raises `ImportError`. | Install the GPU extra with `pip install mesh2sdf2[gpu]`. It requires an NVIDIA GPU and CUDA 12. |
 
 ## Performance
 

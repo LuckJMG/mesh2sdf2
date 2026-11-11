@@ -12,6 +12,7 @@ def compute(
     fix: bool = False,
     level: float = 0.015,
     return_mesh: bool = False,
+    device: str = "cpu",
 ):
     r"""Converts a input mesh to signed distance field (SDF).
 
@@ -25,9 +26,21 @@ def compute(
           with a default value of 0.015 (as a reference 2/128 = 0.015625). And the
           recommended default value is 2/size.
       return_mesh (bool): If True, also return the fixed mesh.
+      device (str): 'cpu', or 'cuda' to compute the SDF on the GPU with CuPy.
+          Both devices give bit-identical results.
     """
+    if device == "cpu":
+        sdf_core = mesh2sdf.core.compute
+    elif device == "cuda":
+        try:
+            from mesh2sdf import gpu
+        except ImportError as e:
+            raise ImportError("device='cuda' needs CuPy: pip install mesh2sdf2[gpu]") from e
+        sdf_core = gpu.compute
+    else:
+        raise ValueError(f"device must be 'cpu' or 'cuda', got {device!r}")
 
-    sdf = mesh2sdf.core.compute(vertices, faces, size)
+    sdf = sdf_core(vertices, faces, size)
     if not fix:
         return (sdf, trimesh.Trimesh(vertices, faces)) if return_mesh else sdf
 
@@ -40,5 +53,5 @@ def compute(
                key=lambda c: c.extents.max())
     mesh.vertices = mesh.vertices * mesh2sdf.core.grid_dx(size) + mesh2sdf.core.box_min
 
-    sdf = mesh2sdf.core.compute(mesh.vertices, mesh.faces, size)
+    sdf = sdf_core(mesh.vertices, mesh.faces, size)
     return (sdf, mesh) if return_mesh else sdf

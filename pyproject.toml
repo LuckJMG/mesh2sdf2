@@ -33,6 +33,9 @@ dependencies = [
     "scikit-image",
 ]
 
+[project.optional-dependencies]
+gpu = ["cupy-cuda12x"]
+
 [project.urls]
 Homepage = "https://github.com/LuckJMG/mesh2sdf2"
 Source = "https://github.com/LuckJMG/mesh2sdf2"
@@ -42,6 +45,9 @@ Upstream = "https://github.com/wang-ps/mesh2sdf"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mesh2sdf*"]
+
+[tool.setuptools.package-data]
+mesh2sdf = ["gpu.cu"]
 
 [dependency-groups]
 dev = [

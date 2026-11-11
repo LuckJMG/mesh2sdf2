@@ -17,15 +17,17 @@ Same algorithm and public API as upstream. Python 3.10–3.14, C++20.
 - `csrc/makelevelset3.cpp` — serial sweep, init, signs, and the dispatcher.
 - `csrc/parallel.h/.cpp` — OpenMP sweep and init, with size thresholds.
 - `csrc/geometry.h`, `csrc/array3.h`, `csrc/vec.h` — header-only geometry and containers.
-- `tests/` — unit tests and thread equivalence tests. Benchmarks are in `tests/bench/`.
+- `mesh2sdf/gpu.py`, `mesh2sdf/gpu.cu` — optional CUDA path for `device="cuda"`. CuPy compiles `gpu.cu` with NVRTC at import.
+- `tests/` — unit tests, thread equivalence tests, and GPU equivalence tests (`tests/test_gpu.py`, skipped without CuPy or a GPU). Benchmarks are in `tests/bench/`.
 - `example/demo.py`, `example/visualize_sdf.py` — example workflow.
 
 ## Public API
 
-`mesh2sdf.compute(vertices, faces, size=128, fix=False, level=0.015, return_mesh=False)`
+`mesh2sdf.compute(vertices, faces, size=128, fix=False, level=0.015, return_mesh=False, device="cpu")`
 
 - `vertices`: `float32`, shape `(N, 3)`, inside `[-1, 1]`. Out-of-range input gives a wrong SDF without an error.
 - `faces`: `uint`, shape `(M, 3)`.
+- `device`: `"cpu"` or `"cuda"`. `"cuda"` needs the `gpu` extra (`cupy-cuda12x`). Other values raise `ValueError`.
 - Returns `sdf` as `float32` with shape `(size, size, size)`. If `return_mesh=True`, also returns a `trimesh.Trimesh`.
 
 The grid spans `[-1, 1]` inclusive with `dx = 2/(size - 1)`. If `size < 2`, the function raises `ValueError`.
@@ -33,7 +35,7 @@ The grid spans `[-1, 1]` inclusive with `dx = 2/(size - 1)`. If `size < 2`, the 
 ## Commands
 
 ```sh
-just build       # uv sync + reinstall the C++ extension
+just build       # uv sync --all-extras + reinstall the C++ extension
 just test        # unit tests
 .venv/bin/python -m pytest tests/ -v   # all tests, includes thread equivalence
 just check       # ruff + clang-format + clang-tidy
@@ -52,6 +54,12 @@ The dev environment is `.venv` (Python 3.14, uv-managed).
 - Do not add `-fno-exceptions`. The pybind boundary needs exceptions.
 - Keep `check_neighbour`/`update_cell` duplicated next to each sweep. The duplication is intentional for locality.
 - Parallel paths must stay bit-identical to the serial paths. `tests/test_sweep_equivalence.py` makes sure of this.
+- The GPU path must stay bit-identical to the CPU path. `tests/test_gpu.py` makes sure of this.
+- `mesh2sdf/gpu.cu` copies the geometry of `csrc/geometry.h` and `csrc/vec.h` one operation at a time. If you change one copy, change the other. One difference is intentional: `point_segment_distance` divides in float, not in double. The result is the same bit for bit (see the comment in `gpu.cu`).
+- Do not let the compiler contract floating-point operations into FMA. `gpu.py` passes `--fmad=false` to NVRTC. Do not add `-march=native` or `-ffp-contract=fast` to `setup.py`.
+- The GPU sweep runs one diagonal plane per kernel launch. A cell reads only cells on earlier planes, so the result is the same as the serial sweep.
+- Each GPU sweep uses its own skewed layout, so that the reads of one plane coalesce. The `relayout` kernel changes the layout between sweeps. If two sweeps differ in `di` but not in `dj`, `relayout_flip_i` does the change through shared-memory tiles, because a plain gather does not coalesce there. Init writes the layout of the first sweep directly.
+- The GPU sweep skips checks for each cell, not for each row as the CPU does. When a GPU cell runs, its source rows are not complete, so the row skip of the CPU cannot work there. `last_change` holds one byte per cell, in the same layout as `phi`. `LIMITS` in `gpu.py` holds, for each sweep and each of the 7 checks, the last earlier sweep that ran the same check.
 - `csrc/pybind.cpp` owns the `[-1, 1]` box and `dx`. `compute.py` reads them from `mesh2sdf.core` (`box_min`, `grid_dx`). If you change the box, update `csrc/pybind.cpp` and `example/demo.py` together.
 - Keep `MANIFEST.in` grafting `csrc/`. Without it, the sdist has no C++ sources.
 - Do not commit generated `*.fixed.obj` or `*.npy` files.
